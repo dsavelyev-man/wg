@@ -1,0 +1,17 @@
+{
+  "name": "@wg/core",
+  "version": "0.0.1",
+  "description": "Wireguard tools for work with him",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dsavelyev-man/wg.git"
+  },
+  "author": "dsavelyev-man",
+  "license": "MIT",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "engines": {
+    "node": ">= 16"
+  }
+}
