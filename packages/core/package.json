@@ -10,10 +10,18 @@
   "author": "dsavelyev-man",
   "license": "MIT",
   "private": true,
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "nodemon --exec ts-node src/index.ts"
+  },
   "dependencies": {
     "release-it": "^19.0.4"
   },
-  "peerDependencies": {
+  "devDependencies": {
+    "@types/node": "^16.6.2",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
 }
