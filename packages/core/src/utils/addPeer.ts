@@ -1,5 +1,7 @@
 import { parse } from "../parser/parse"
-import { readFile  } from "fs/promises";
+import { readFile, writeFile  } from "fs/promises";
+import { stringify } from "../parser/stringify";
+import { down } from "./down";
 
 const ipToNumber = (ip: string) => {
   return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0);
@@ -21,7 +23,11 @@ const getNextIp = (currentIp: string) => {
   return numberToIp(nextNum);
 }
 
-export const addPeer = async (filepath: string) =>{
+export const addPeer = async (filepath: string, {
+  publicKey
+}: {
+  publicKey: string;
+}) =>{
     const file = (await readFile(filepath)).toString()
     const parsed = parse(file)
     let lastMax = {
@@ -47,7 +53,12 @@ export const addPeer = async (filepath: string) =>{
 
     const nextIp = getNextIp(parsed["Peers"][lastMax.index]["AllowedIPs"].replace("/32", ""))
     const newPeer = {
-        PublicKey: "newPublicKey",
+        PublicKey: publicKey,
         AllowedIPs: `${nextIp}/32`,
     }
+
+    parsed["Peers"].push(newPeer)
+
+    const newFile = stringify(parsed)
+    await writeFile(filepath, newFile)
 }

@@ -1,12 +1,6 @@
-import { readFile } from "fs/promises"
-import { parse } from "./parser/parse"
-import { stringify } from "./parser/stringify"
-import { addPeer } from "./utils/addPeer"
-import { generateKeys } from "./utils/generateKeys"
-
-const test = async () => {
-    const file = (await addPeer("./tests/wg0.conf"))
-    const keys = generateKeys()
-}
-
-test()
+export { parse } from "./parser/parse"
+export { stringify } from "./parser/stringify"
+export { addPeer } from "./utils/addPeer"
+export { generateKeys } from "./utils/generateKeys"
+export { up } from "./utils/up"
+export { down } from "./utils/down"
