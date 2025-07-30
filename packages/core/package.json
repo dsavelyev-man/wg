@@ -13,14 +13,13 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "nodemon --exec ts-node src/index.ts"
-  },
-  "dependencies": {
-    "release-it": "^19.0.4"
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "release": "release-it"
   },
   "devDependencies": {
     "@types/node": "^16.6.2",
     "nodemon": "^3.1.10",
+    "release-it": "^19.0.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
