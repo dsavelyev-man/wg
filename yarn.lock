@@ -313,7 +313,7 @@
   integrity sha512-LriObC2+KYZD3FzCrgWGv/qufdUy4eXrxcLgQMfYXgPbLIecKIsVBaQgUPmxSSLcjmYbDTQbMgr6qr6l/eb7Bg==
 
 "@wg/core@file:/home/dsavelyev/Projects/wg/packages/core":
-  version "0.0.1"
+  version "0.0.2"
   resolved "file:packages/core"
 
 acorn-walk@^8.1.1:
