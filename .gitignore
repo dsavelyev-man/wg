@@ -2,3 +2,4 @@ publickey
 privatekey
 dist
 tsconfig.tsbuildinfo
+node_modules
