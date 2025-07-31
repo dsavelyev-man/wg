@@ -1,8 +1,8 @@
-import { generateKeys } from "./utils/generateKeys"
-
 export { parse } from "./parser/parse"
 export { stringify } from "./parser/stringify"
 export { addPeer } from "./utils/addPeer"
+export { deletePeer } from "./utils/deletePeer"
 export { generateKeys } from "./utils/generateKeys"
 export { up } from "./utils/up"
 export { down } from "./utils/down"
+export { initConf } from "./utils/initConf"

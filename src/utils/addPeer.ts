@@ -35,7 +35,7 @@ export const addPeer = async (filepath: string, {
         index: 0
     }
 
-    parsed["Peers"].forEach((item, index) => {
+    parsed["Peers"] || [].forEach((item: any, index) => {
         const ints = item["AllowedIPs"].replace("/32", "").split(".").map((item) => parseInt(item))
         ints[0] = ints[0] * 255 * 255 * 255
         ints[1] = ints[1] * 255 * 255
@@ -51,7 +51,15 @@ export const addPeer = async (filepath: string, {
         }
     })
 
-    const nextIp = getNextIp(parsed["Peers"][lastMax.index]["AllowedIPs"].replace("/32", ""))
+    let nextIp = "10.0.0.2"
+    if(parsed["Peers"]) {
+      const lastIp = parsed["Peers"][lastMax.index]["AllowedIPs"].replace("/32", "");
+      if(lastIp) {
+        nextIp = getNextIp(lastIp)
+      }
+    } else {
+      parsed["Peers"] = []
+    }
     const newPeer = {
         PublicKey: publicKey,
         AllowedIPs: `${nextIp}/32`,
