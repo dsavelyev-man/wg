@@ -1,0 +1,16 @@
+# Working with wireguard config
+
+```ts
+import { parse, stringify } from "@kriper0nind/wg-utils"
+import { writeFile, readFile } from "fs/promises"
+
+const file = await readFile("/etc/wireguard/wg0.conf", "utf-8")
+const parsed = parse(strConfig.toString())
+
+parsed["Peers"].push({
+    PublicKey: "publickey",
+    AllowedIPs: `10.0.0.1/32`,
+})
+
+writeFile("/etc/wireguard/wg0.conf", stringify(parsed), "utf-8")
+```
