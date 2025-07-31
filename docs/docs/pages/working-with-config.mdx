@@ -12,5 +12,5 @@ parsed["Peers"].push({
     AllowedIPs: `10.0.0.1/32`,
 })
 
-writeFile("/etc/wireguard/wg0.conf", stringify(parsed), "utf-8")
+await writeFile("/etc/wireguard/wg0.conf", stringify(parsed), "utf-8")
 ```
