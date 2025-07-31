@@ -1,3 +1,4 @@
 publickey
 privatekey
 dist
+tsconfig.tsbuildinfo
