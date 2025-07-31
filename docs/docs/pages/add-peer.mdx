@@ -1,0 +1,10 @@
+# addPeer
+
+```ts
+import { addPeer, generateKeys } from "@kriper0nind/wg-utils"
+
+const keys = await generateKeys()
+await addPeer("/etc/wireguard/wg0.conf", {
+    publicKey: keys.publicKey,
+})
+```
