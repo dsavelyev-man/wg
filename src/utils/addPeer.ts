@@ -69,4 +69,8 @@ export const addPeer = async (filepath: string, {
 
     const newFile = stringify(parsed)
     await writeFile(filepath, newFile)
+
+    return {
+      ip: nextIp
+    }
 }
