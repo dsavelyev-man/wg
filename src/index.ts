@@ -1,3 +1,5 @@
+import { getPubKey } from "./utils/getPubkey"
+
 export { parse } from "./parser/parse"
 export { stringify } from "./parser/stringify"
 export { addPeer } from "./utils/addPeer"
@@ -6,3 +8,5 @@ export { generateKeys } from "./utils/generateKeys"
 export { up } from "./utils/up"
 export { down } from "./utils/down"
 export { initConf } from "./utils/initConf"
+
+getPubKey("/etc/wireguard/wg0.conf")
