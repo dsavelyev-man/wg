@@ -2,7 +2,9 @@ import { exec } from "child_process"
 import { readFile } from "fs/promises"
 import { parse } from "../parser/parse"
 
-export const getPubKey = async (filepath: string) => {
+export const getPubKey = async (filepath: string): Promise<{
+    publicKey: string
+}> => {
     const parsed = parse((await readFile(filepath)).toString())
 
     const publicKey = await (new Promise((res, rej) => {
@@ -16,6 +18,6 @@ export const getPubKey = async (filepath: string) => {
     }))
 
     return {
-        publicKey
+        publicKey: publicKey as string
     }
 }
