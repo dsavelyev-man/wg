@@ -1,0 +1,267 @@
+# API Reference
+
+Complete reference for all functions available in `@kriper0nind/wg-utils`.
+
+## Configuration Management
+
+### `parse(configText: string)`
+
+Parses a WireGuard configuration file into a JavaScript object.
+
+**Parameters:**
+- `configText` (`string`): Raw configuration file content
+
+**Returns:** `object` - Configuration object with `Interface` and `Peers` properties
+
+**Example:**
+```ts
+import { parse } from "@kriper0nind/wg-utils"
+
+const configContent = `[Interface]
+PrivateKey = server-private-key
+Address = 10.0.0.1/24
+
+[Peer]
+PublicKey = client-public-key
+AllowedIPs = 10.0.0.2/32`
+
+const config = parse(configContent)
+console.log(config.Interface.Address) // "10.0.0.1/24"
+```
+
+### `stringify(config: object)`
+
+Converts a configuration object back into WireGuard configuration format.
+
+**Parameters:**
+- `config` (`object`): Configuration object with `Interface` and `Peers` properties
+
+**Returns:** `string` - WireGuard configuration file content
+
+**Example:**
+```ts
+import { stringify } from "@kriper0nind/wg-utils"
+
+const config = {
+  Interface: {
+    PrivateKey: "server-private-key",
+    Address: "10.0.0.1/24"
+  },
+  Peers: []
+}
+
+const configText = stringify(config)
+```
+
+## Key Management
+
+### `generateKeys(options?: object)`
+
+Generates a new WireGuard key pair.
+
+**Parameters:**
+- `options` (`object`, optional): Configuration options
+  - `privateKeyPath` (`string`, optional): Path to save private key
+  - `publicKeyPath` (`string`, optional): Path to save public key
+
+**Returns:** `Promise<{publicKey: string, privateKey: string}>`
+
+**Example:**
+```ts
+import { generateKeys } from "@kriper0nind/wg-utils"
+
+const keys = await generateKeys()
+console.log(keys.publicKey)  // Generated public key
+console.log(keys.privateKey) // Generated private key
+```
+
+### `getPubKey(filepath: string)`
+
+Extracts the public key from a configuration file's private key.
+
+**Parameters:**
+- `filepath` (`string`): Path to the WireGuard configuration file
+
+**Returns:** `Promise<{publicKey: string}>`
+
+**Example:**
+```ts
+import { getPubKey } from "@kriper0nind/wg-utils"
+
+const result = await getPubKey("/etc/wireguard/wg0.conf")
+console.log(result.publicKey)
+```
+
+## Configuration Creation
+
+### `initConf(filepath: string, options: object)`
+
+Creates an initial WireGuard server configuration.
+
+**Parameters:**
+- `filepath` (`string`): Path where to save the configuration file
+- `options` (`object`): Configuration options
+  - `privateKey` (`string`): Server's private key
+  - `port` (`number`, optional): Listening port (default: 51820)
+  - `ip` (`string`, optional): Server IP address (default: "10.0.0.1")
+  - `interface` (`string`, optional): Network interface for NAT (default: "eth0")
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```ts
+import { initConf, generateKeys } from "@kriper0nind/wg-utils"
+
+const keys = await generateKeys()
+await initConf("/etc/wireguard/wg0.conf", {
+  privateKey: keys.privateKey,
+  port: 51820,
+  ip: "10.0.0.1",
+  interface: "eth0"
+})
+```
+
+## Peer Management
+
+### `addPeer(filepath: string, options: object)`
+
+Adds a new peer to a WireGuard configuration with automatic IP assignment.
+
+**Parameters:**
+- `filepath` (`string`): Path to the WireGuard configuration file
+- `options` (`object`): Peer configuration
+  - `publicKey` (`string`): Peer's public key
+
+**Returns:** `Promise<{ip: string}>` - Assigned IP address
+
+**Example:**
+```ts
+import { addPeer, generateKeys } from "@kriper0nind/wg-utils"
+
+const clientKeys = await generateKeys()
+const result = await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: clientKeys.publicKey
+})
+console.log(`Client IP: ${result.ip}`) // "10.0.0.2"
+```
+
+### `deletePeer(filepath: string, where: object)`
+
+Removes a peer from a WireGuard configuration.
+
+**Parameters:**
+- `filepath` (`string`): Path to the WireGuard configuration file
+- `where` (`object`): Identification criteria
+  - `publicKey` (`string`): Public key of the peer to remove
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```ts
+import { deletePeer } from "@kriper0nind/wg-utils"
+
+await deletePeer("/etc/wireguard/wg0.conf", {
+  publicKey: "client-public-key-to-remove"
+})
+```
+
+## Interface Control
+
+### `up(iface: string)`
+
+Starts a WireGuard interface.
+
+**Parameters:**
+- `iface` (`string`): Interface name (e.g., "wg0")
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```ts
+import { up } from "@kriper0nind/wg-utils"
+
+await up("wg0")
+console.log("WireGuard interface started")
+```
+
+### `down(iface: string)`
+
+Stops a WireGuard interface.
+
+**Parameters:**
+- `iface` (`string`): Interface name (e.g., "wg0")
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```ts
+import { down } from "@kriper0nind/wg-utils"
+
+await down("wg0")
+console.log("WireGuard interface stopped")
+```
+
+## Error Handling
+
+All functions may throw errors in the following scenarios:
+
+- **File operations**: `ENOENT` for missing files, `EACCES` for permission denied
+- **WireGuard operations**: Invalid keys, interface already exists, etc.
+- **Configuration parsing**: Malformed configuration files
+- **System operations**: Missing WireGuard tools, insufficient privileges
+
+**Example error handling:**
+```ts
+try {
+  await addPeer("/etc/wireguard/wg0.conf", {
+    publicKey: "invalid-key"
+  })
+} catch (error) {
+  if (error.code === 'ENOENT') {
+    console.error("Configuration file not found")
+  } else if (error.message.includes('Invalid key')) {
+    console.error("Invalid public key format")
+  } else {
+    console.error("Unexpected error:", error.message)
+  }
+}
+```
+
+## Type Definitions
+
+```ts
+interface KeyPair {
+  publicKey: string
+  privateKey: string
+}
+
+interface InitConfOptions {
+  privateKey: string
+  port?: number
+  ip?: string
+  interface?: string
+}
+
+interface AddPeerOptions {
+  publicKey: string
+}
+
+interface DeletePeerOptions {
+  publicKey: string
+}
+
+interface GetPubKeyResult {
+  publicKey: string
+}
+
+interface AddPeerResult {
+  ip: string
+}
+```
+
+## Requirements
+
+- **Node.js** 16 or higher
+- **WireGuard** installed on the system
+- **Root/sudo privileges** for interface management
+- **iptables** installed for NAT functionality

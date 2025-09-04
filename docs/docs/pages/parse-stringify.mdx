@@ -1,0 +1,421 @@
+# parse & stringify
+
+Core functions for converting between WireGuard configuration files and JavaScript objects.
+
+## Overview
+
+The `parse` and `stringify` functions are the foundation of the library, allowing you to work with WireGuard configurations as JavaScript objects. These functions handle the conversion between the text-based WireGuard format and structured data.
+
+## Functions
+
+### `parse(configText: string)`
+
+Converts a WireGuard configuration file (text) into a JavaScript object.
+
+**Parameters:**
+- `configText` (`string`): Raw configuration file content
+
+**Returns:** `object` - Configuration object with `Interface` and `Peers` properties
+
+### `stringify(config: object)`
+
+Converts a configuration object back into WireGuard configuration file format.
+
+**Parameters:**
+- `config` (`object`): Configuration object with `Interface` and `Peers` properties
+
+**Returns:** `string` - WireGuard configuration file content
+
+## Basic Usage
+
+### Parsing a Configuration
+
+```ts
+import { parse } from "@kriper0nind/wg-utils"
+
+const configText = `[Interface]
+PrivateKey = server-private-key
+Address = 10.0.0.1/24
+ListenPort = 51820
+
+[Peer]
+PublicKey = client-public-key
+AllowedIPs = 10.0.0.2/32`
+
+const config = parse(configText)
+
+console.log("Server address:", config.Interface.Address)
+console.log("Number of peers:", config.Peers.length)
+```
+
+### Stringifying a Configuration
+
+```ts
+import { stringify } from "@kriper0nind/wg-utils"
+
+const config = {
+  Interface: {
+    PrivateKey: "server-private-key",
+    Address: "10.0.0.1/24",
+    ListenPort: 51820
+  },
+  Peers: [{
+    PublicKey: "client-public-key",
+    AllowedIPs: "10.0.0.2/32"
+  }]
+}
+
+const configText = stringify(config)
+console.log(configText)
+```
+
+## Advanced Usage
+
+### Configuration Manipulation
+
+```ts
+import { parse, stringify } from "@kriper0nind/wg-utils"
+import { readFile, writeFile } from "fs/promises"
+
+async function modifyConfiguration(filepath: string) {
+  // Read and parse
+  const configContent = await readFile(filepath, "utf-8")
+  const config = parse(configContent)
+  
+  // Modify configuration
+  config.Interface.ListenPort = 51821
+  config.Interface.Address = "192.168.1.1/24"
+  
+  // Add a new peer
+  config.Peers.push({
+    PublicKey: "new-client-public-key",
+    AllowedIPs: "192.168.1.10/32"
+  })
+  
+  // Convert back and save
+  const newConfig = stringify(config)
+  await writeFile(filepath, newConfig)
+  
+  console.log("Configuration updated")
+}
+```
+
+### Configuration Validation
+
+```ts
+function validateConfiguration(config: any): string[] {
+  const errors: string[] = []
+  
+  // Check Interface section
+  if (!config.Interface) {
+    errors.push("Missing Interface section")
+  } else {
+    if (!config.Interface.PrivateKey) {
+      errors.push("Missing PrivateKey in Interface")
+    }
+    if (!config.Interface.Address) {
+      errors.push("Missing Address in Interface")
+    }
+  }
+  
+  // Check Peers section
+  if (config.Peers) {
+    config.Peers.forEach((peer: any, index: number) => {
+      if (!peer.PublicKey) {
+        errors.push(`Peer ${index}: Missing PublicKey`)
+      }
+      if (!peer.AllowedIPs) {
+        errors.push(`Peer ${index}: Missing AllowedIPs`)
+      }
+    })
+  }
+  
+  return errors
+}
+
+// Usage
+const config = parse(configContent)
+const errors = validateConfiguration(config)
+
+if (errors.length > 0) {
+  console.error("Configuration errors:", errors)
+} else {
+  console.log("Configuration is valid")
+}
+```
+
+### Configuration Comparison
+
+```ts
+function compareConfigurations(config1: any, config2: any) {
+  const differences: string[] = []
+  
+  // Compare Interface
+  if (JSON.stringify(config1.Interface) !== JSON.stringify(config2.Interface)) {
+    differences.push("Interface section differs")
+  }
+  
+  // Compare Peers
+  const peers1 = config1.Peers || []
+  const peers2 = config2.Peers || []
+  
+  if (peers1.length !== peers2.length) {
+    differences.push(`Peer count differs: ${peers1.length} vs ${peers2.length}`)
+  }
+  
+  // Compare individual peers
+  peers1.forEach((peer1: any, index: number) => {
+    const peer2 = peers2[index]
+    if (peer2 && JSON.stringify(peer1) !== JSON.stringify(peer2)) {
+      differences.push(`Peer ${index} differs`)
+    }
+  })
+  
+  return differences
+}
+```
+
+## Configuration Structure
+
+### Interface Section
+
+The `Interface` section contains server-side configuration:
+
+```ts
+interface InterfaceConfig {
+  PrivateKey: string      // Server's private key
+  Address: string         // Server IP and subnet
+  ListenPort?: number     // UDP listening port
+  PostUp?: string         // Commands to run on interface up
+  PostDown?: string       // Commands to run on interface down
+  DNS?: string           // DNS servers for clients
+  MTU?: number           // Maximum transmission unit
+}
+```
+
+### Peers Section
+
+The `Peers` section is an array of client configurations:
+
+```ts
+interface PeerConfig {
+  PublicKey: string           // Client's public key
+  AllowedIPs: string         // IP addresses this peer can use
+  Endpoint?: string          // Client's endpoint (for server configs)
+  PersistentKeepalive?: number // Keepalive interval
+  PresharedKey?: string      // Optional preshared key
+}
+```
+
+## Complete Configuration Object
+
+```ts
+interface WireGuardConfig {
+  Interface: InterfaceConfig
+  Peers: PeerConfig[]
+}
+```
+
+## Examples
+
+### Configuration Template Generator
+
+```ts
+function createServerTemplate(privateKey: string, port: number = 51820) {
+  return {
+    Interface: {
+      PrivateKey: privateKey,
+      Address: "10.0.0.1/24",
+      ListenPort: port,
+      PostUp: "iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE",
+      PostDown: "iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE"
+    },
+    Peers: []
+  }
+}
+
+function createClientTemplate(privateKey: string, serverPublicKey: string, clientIP: string) {
+  return {
+    Interface: {
+      PrivateKey: privateKey,
+      Address: `${clientIP}/32`
+    },
+    Peers: [{
+      PublicKey: serverPublicKey,
+      Endpoint: "server.example.com:51820",
+      AllowedIPs: "0.0.0.0/0",
+      PersistentKeepalive: 25
+    }]
+  }
+}
+```
+
+### Configuration Migration
+
+```ts
+async function migrateConfiguration(oldConfigPath: string, newConfigPath: string) {
+  try {
+    // Read old configuration
+    const oldContent = await readFile(oldConfigPath, "utf-8")
+    const config = parse(oldContent)
+    
+    // Apply migrations
+    if (config.Interface.ListenPort === 51820) {
+      config.Interface.ListenPort = 51821 // Change default port
+    }
+    
+    // Update PostUp/PostDown commands for new interface
+    if (config.Interface.PostUp) {
+      config.Interface.PostUp = config.Interface.PostUp.replace('eth0', 'ens3')
+    }
+    
+    // Save new configuration
+    const newContent = stringify(config)
+    await writeFile(newConfigPath, newContent)
+    
+    console.log("Configuration migrated successfully")
+    
+  } catch (error) {
+    console.error("Migration failed:", error.message)
+    throw error
+  }
+}
+```
+
+### Configuration Backup and Restore
+
+```ts
+import { copyFile } from "fs/promises"
+
+async function backupConfiguration(configPath: string) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = `${configPath}.backup.${timestamp}`
+  
+  await copyFile(configPath, backupPath)
+  console.log(`Backup created: ${backupPath}`)
+  
+  return backupPath
+}
+
+async function restoreConfiguration(configPath: string, backupPath: string) {
+  await copyFile(backupPath, configPath)
+  console.log(`Configuration restored from: ${backupPath}`)
+}
+
+// Usage
+const backupPath = await backupConfiguration("/etc/wireguard/wg0.conf")
+
+// Make changes...
+// ... configuration modifications ...
+
+// If something goes wrong, restore
+// await restoreConfiguration("/etc/wireguard/wg0.conf", backupPath)
+```
+
+### Configuration Analysis
+
+```ts
+function analyzeConfiguration(config: any) {
+  const analysis = {
+    hasInterface: !!config.Interface,
+    hasPeers: !!(config.Peers && config.Peers.length > 0),
+    peerCount: config.Peers?.length || 0,
+    serverIP: config.Interface?.Address,
+    serverPort: config.Interface?.ListenPort,
+    hasNAT: !!(config.Interface?.PostUp?.includes('MASQUERADE')),
+    hasDNS: !!config.Interface?.DNS
+  }
+  
+  return analysis
+}
+
+// Usage
+const config = parse(configContent)
+const analysis = analyzeConfiguration(config)
+
+console.log("Configuration Analysis:", analysis)
+```
+
+### Configuration Diff
+
+```ts
+function getConfigurationDiff(oldConfig: any, newConfig: any) {
+  const diff = {
+    interface: {},
+    peers: {
+      added: [],
+      removed: [],
+      modified: []
+    }
+  }
+  
+  // Compare Interface
+  if (oldConfig.Interface && newConfig.Interface) {
+    Object.keys(newConfig.Interface).forEach(key => {
+      if (oldConfig.Interface[key] !== newConfig.Interface[key]) {
+        diff.interface[key] = {
+          old: oldConfig.Interface[key],
+          new: newConfig.Interface[key]
+        }
+      }
+    })
+  }
+  
+  // Compare Peers
+  const oldPeers = oldConfig.Peers || []
+  const newPeers = newConfig.Peers || []
+  
+  // Find added peers
+  newPeers.forEach((newPeer: any) => {
+    const exists = oldPeers.some((oldPeer: any) => oldPeer.PublicKey === newPeer.PublicKey)
+    if (!exists) {
+      diff.peers.added.push(newPeer)
+    }
+  })
+  
+  // Find removed peers
+  oldPeers.forEach((oldPeer: any) => {
+    const exists = newPeers.some((newPeer: any) => newPeer.PublicKey === oldPeer.PublicKey)
+    if (!exists) {
+      diff.peers.removed.push(oldPeer)
+    }
+  })
+  
+  return diff
+}
+```
+
+## Error Handling
+
+```ts
+function safeParse(configText: string) {
+  try {
+    return parse(configText)
+  } catch (error) {
+    console.error("Failed to parse configuration:", error.message)
+    return null
+  }
+}
+
+function safeStringify(config: any) {
+  try {
+    return stringify(config)
+  } catch (error) {
+    console.error("Failed to stringify configuration:", error.message)
+    return null
+  }
+}
+```
+
+## Dependencies
+
+- **No external dependencies** - Pure JavaScript implementation
+- **File system operations** - When used with `readFile`/`writeFile`
+
+## Notes
+
+- The `parse` function skips empty lines and comments (lines starting with `#` or `;`)
+- Section names are case-sensitive (`[Interface]` and `[Peer]`)
+- Key-value pairs are trimmed of whitespace
+- The `stringify` function preserves the order of sections and properties
+- Both functions handle missing sections gracefully

@@ -1,10 +1,119 @@
 # addPeer
 
+Adds a new peer to a WireGuard configuration file with automatic IP address assignment.
+
+## Overview
+
+The `addPeer` function automatically adds a new peer to an existing WireGuard configuration file. It intelligently assigns the next available IP address in the 10.0.0.0/24 subnet, ensuring no conflicts with existing peers.
+
+## Signature
+
+```ts
+addPeer(filepath: string, options: { publicKey: string }): Promise<{ ip: string }>
+```
+
+## Parameters
+
+- **`filepath`** (`string`): Path to the WireGuard configuration file (e.g., `/etc/wireguard/wg0.conf`)
+- **`options`** (`object`): Configuration options for the new peer
+  - **`publicKey`** (`string`): The public key of the peer to add
+
+## Returns
+
+Returns a Promise that resolves to an object containing:
+- **`ip`** (`string`): The IP address assigned to the new peer
+
+## Behavior
+
+### IP Address Assignment
+- **First peer**: Gets `10.0.0.2/32` (10.0.0.1 is typically reserved for the server)
+- **Subsequent peers**: Gets the next available IP address in sequence
+- **Algorithm**: Finds the highest IP address among existing peers and increments it by 1
+- **Format**: All assigned IPs use `/32` subnet mask for point-to-point connections
+
+### Configuration File Processing
+1. Reads and parses the existing WireGuard configuration file
+2. Analyzes existing peers to find the highest assigned IP address
+3. Calculates the next available IP address
+4. Creates a new peer entry with the provided public key
+5. Writes the updated configuration back to the file
+
+## Example Usage
+
+### Basic Usage
 ```ts
 import { addPeer, generateKeys } from "@kriper0nind/wg-utils"
 
+// Generate new key pair
 const keys = await generateKeys()
-await addPeer("/etc/wireguard/wg0.conf", {
+
+// Add peer to configuration
+const result = await addPeer("/etc/wireguard/wg0.conf", {
     publicKey: keys.publicKey,
 })
+
+console.log(`New peer added with IP: ${result.ip}`)
+// Output: "New peer added with IP: 10.0.0.2"
 ```
+
+### Adding Multiple Peers
+```ts
+import { addPeer, generateKeys } from "@kriper0nind/wg-utils"
+
+const configPath = "/etc/wireguard/wg0.conf"
+
+// Add first peer
+const keys1 = await generateKeys()
+const peer1 = await addPeer(configPath, { publicKey: keys1.publicKey })
+console.log(`Peer 1 IP: ${peer1.ip}`) // 10.0.0.2
+
+// Add second peer
+const keys2 = await generateKeys()
+const peer2 = await addPeer(configPath, { publicKey: keys2.publicKey })
+console.log(`Peer 2 IP: ${peer2.ip}`) // 10.0.0.3
+```
+
+### Using Existing Public Key
+```ts
+import { addPeer } from "@kriper0nind/wg-utils"
+
+const existingPublicKey = "your-existing-public-key-here"
+
+const result = await addPeer("/etc/wireguard/wg0.conf", {
+    publicKey: existingPublicKey,
+})
+
+console.log(`Peer added with IP: ${result.ip}`)
+```
+
+## Generated Configuration
+
+The function adds a peer entry in the following format to your WireGuard configuration:
+
+```ini
+[Peer]
+PublicKey = <provided-public-key>
+AllowedIPs = <assigned-ip>/32
+```
+
+## Error Handling
+
+The function may throw errors in the following scenarios:
+- **File not found**: If the specified configuration file doesn't exist
+- **Permission denied**: If the file cannot be read or written
+- **Invalid configuration**: If the existing configuration file is malformed
+- **File system errors**: If there are issues writing to the file
+
+## Dependencies
+
+- **`parse`**: Parses WireGuard configuration files
+- **`stringify`**: Converts configuration objects back to WireGuard format
+- **`fs/promises`**: For file system operations
+
+## Notes
+
+- The function automatically creates a `Peers` array if none exists
+- IP addresses are assigned sequentially starting from `10.0.0.2`
+- The function preserves all existing configuration and comments
+- All peers are assigned `/32` subnet masks for individual client connections
+- The configuration file is overwritten with the updated content

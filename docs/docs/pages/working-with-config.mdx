@@ -1,16 +1,385 @@
-# Working with wireguard config
+# Working with WireGuard Configurations
+
+Learn how to parse, modify, and manage WireGuard configuration files programmatically using the `parse` and `stringify` functions.
+
+## Overview
+
+The `@kriper0nind/wg-utils` library provides powerful tools for working with WireGuard configuration files. You can read, parse, modify, and write configuration files using simple JavaScript objects, making it easy to programmatically manage your VPN setups.
+
+## Core Functions
+
+### `parse(configText: string)`
+
+Converts a WireGuard configuration file (text) into a JavaScript object for easy manipulation.
+
+**Parameters:**
+- `configText` (`string`): The raw configuration file content
+
+**Returns:** A configuration object with `Interface` and `Peers` properties
+
+### `stringify(config: object)`
+
+Converts a configuration object back into WireGuard configuration file format.
+
+**Parameters:**
+- `config` (`object`): Configuration object with `Interface` and `Peers` properties
+
+**Returns:** A string in WireGuard configuration format
+
+## Configuration Structure
+
+WireGuard configurations have two main sections:
+
+### Interface Section
+Contains server-side configuration:
+- `Address`: Server IP address and subnet
+- `ListenPort`: Port to listen on
+- `PrivateKey`: Server's private key
+- `PostUp`: Commands to run when interface comes up
+- `PostDown`: Commands to run when interface goes down
+
+### Peers Section
+Array of peer configurations:
+- `PublicKey`: Peer's public key
+- `AllowedIPs`: IP addresses this peer can use
+- `Endpoint`: Optional peer endpoint
+- `PersistentKeepalive`: Keepalive settings
+
+## Basic Usage
+
+### Reading and Parsing a Configuration
 
 ```ts
 import { parse, stringify } from "@kriper0nind/wg-utils"
-import { writeFile, readFile } from "fs/promises"
+import { readFile, writeFile } from "fs/promises"
 
-const file = await readFile("/etc/wireguard/wg0.conf", "utf-8")
-const parsed = parse(strConfig.toString())
+// Read configuration file
+const configContent = await readFile("/etc/wireguard/wg0.conf", "utf-8")
 
-parsed["Peers"].push({
-    PublicKey: "publickey",
-    AllowedIPs: `10.0.0.1/32`,
+// Parse into JavaScript object
+const config = parse(configContent)
+
+console.log("Server address:", config.Interface.Address)
+console.log("Number of peers:", config.Peers?.length || 0)
+```
+
+### Writing a Configuration
+
+```ts
+// Modify the configuration
+config.Interface.ListenPort = 51821
+
+// Convert back to WireGuard format
+const newConfig = stringify(config)
+
+// Write to file
+await writeFile("/etc/wireguard/wg0.conf", newConfig, "utf-8")
+```
+
+## Common Operations
+
+### 1. Adding a Peer Manually
+
+```ts
+import { parse, stringify } from "@kriper0nind/wg-utils"
+import { readFile, writeFile } from "fs/promises"
+
+const configContent = await readFile("/etc/wireguard/wg0.conf", "utf-8")
+const config = parse(configContent)
+
+// Ensure Peers array exists
+if (!config.Peers) {
+  config.Peers = []
+}
+
+// Add new peer
+config.Peers.push({
+  PublicKey: "client-public-key-here",
+  AllowedIPs: "10.0.0.2/32"
 })
 
-await writeFile("/etc/wireguard/wg0.conf", stringify(parsed), "utf-8")
+// Save configuration
+const newConfig = stringify(config)
+await writeFile("/etc/wireguard/wg0.conf", newConfig, "utf-8")
+```
+
+### 2. Removing a Peer
+
+```ts
+const configContent = await readFile("/etc/wireguard/wg0.conf", "utf-8")
+const config = parse(configContent)
+
+// Find and remove peer by public key
+const peerIndex = config.Peers.findIndex(peer => 
+  peer.PublicKey === "client-public-key-to-remove"
+)
+
+if (peerIndex !== -1) {
+  config.Peers.splice(peerIndex, 1)
+  
+  const newConfig = stringify(config)
+  await writeFile("/etc/wireguard/wg0.conf", newConfig, "utf-8")
+}
+```
+
+### 3. Modifying Server Settings
+
+```ts
+const configContent = await readFile("/etc/wireguard/wg0.conf", "utf-8")
+const config = parse(configContent)
+
+// Update server settings
+config.Interface.ListenPort = 51820
+config.Interface.Address = "10.0.0.1/24"
+
+// Add custom PostUp command
+config.Interface.PostUp = "iptables -A FORWARD -i %i -j ACCEPT"
+
+const newConfig = stringify(config)
+await writeFile("/etc/wireguard/wg0.conf", newConfig, "utf-8")
+```
+
+### 4. Bulk Peer Operations
+
+```ts
+// Add multiple peers at once
+const newPeers = [
+  { PublicKey: "peer1-public-key", AllowedIPs: "10.0.0.2/32" },
+  { PublicKey: "peer2-public-key", AllowedIPs: "10.0.0.3/32" },
+  { PublicKey: "peer3-public-key", AllowedIPs: "10.0.0.4/32" }
+]
+
+config.Peers.push(...newPeers)
+
+// Or replace all peers
+config.Peers = newPeers
+```
+
+## Advanced Examples
+
+### Creating a Complete Server Configuration
+
+```ts
+import { generateKeys } from "@kriper0nind/wg-utils"
+
+// Generate server keys
+const serverKeys = await generateKeys()
+
+// Create configuration object
+const config = {
+  Interface: {
+    Address: "10.0.0.1/24",
+    ListenPort: 51820,
+    PrivateKey: serverKeys.privateKey,
+    PostUp: "iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE",
+    PostDown: "iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE"
+  },
+  Peers: []
+}
+
+// Convert to WireGuard format and save
+const configText = stringify(config)
+await writeFile("/etc/wireguard/wg0.conf", configText, "utf-8")
+```
+
+### Validating Configuration
+
+```ts
+function validateConfig(config) {
+  const errors = []
+  
+  // Check Interface section
+  if (!config.Interface) {
+    errors.push("Missing Interface section")
+  } else {
+    if (!config.Interface.PrivateKey) {
+      errors.push("Missing PrivateKey in Interface")
+    }
+    if (!config.Interface.Address) {
+      errors.push("Missing Address in Interface")
+    }
+  }
+  
+  // Check Peers section
+  if (config.Peers) {
+    config.Peers.forEach((peer, index) => {
+      if (!peer.PublicKey) {
+        errors.push(`Peer ${index}: Missing PublicKey`)
+      }
+      if (!peer.AllowedIPs) {
+        errors.push(`Peer ${index}: Missing AllowedIPs`)
+      }
+    })
+  }
+  
+  return errors
+}
+
+// Usage
+const config = parse(configContent)
+const errors = validateConfig(config)
+
+if (errors.length > 0) {
+  console.error("Configuration errors:", errors)
+} else {
+  console.log("Configuration is valid")
+}
+```
+
+### Configuration Backup and Restore
+
+```ts
+import { readFile, writeFile, copyFile } from "fs/promises"
+
+// Backup configuration
+await copyFile("/etc/wireguard/wg0.conf", "/etc/wireguard/wg0.conf.backup")
+
+// Modify configuration
+const configContent = await readFile("/etc/wireguard/wg0.conf", "utf-8")
+const config = parse(configContent)
+
+// Make changes...
+config.Interface.ListenPort = 51821
+
+// Save changes
+const newConfig = stringify(config)
+await writeFile("/etc/wireguard/wg0.conf", newConfig, "utf-8")
+
+// If something goes wrong, restore from backup
+// await copyFile("/etc/wireguard/wg0.conf.backup", "/etc/wireguard/wg0.conf")
+```
+
+### Working with Multiple Configurations
+
+```ts
+async function manageMultipleConfigs() {
+  const configs = ["wg0", "wg1", "wg2"]
+  
+  for (const configName of configs) {
+    const filePath = `/etc/wireguard/${configName}.conf`
+    
+    try {
+      const content = await readFile(filePath, "utf-8")
+      const config = parse(content)
+      
+      console.log(`${configName}: ${config.Peers?.length || 0} peers`)
+      
+      // Modify each config as needed
+      // ...
+      
+    } catch (error) {
+      console.error(`Error processing ${configName}:`, error.message)
+    }
+  }
+}
+```
+
+## Error Handling
+
+```ts
+import { parse, stringify } from "@kriper0nind/wg-utils"
+
+try {
+  const configContent = await readFile("/etc/wireguard/wg0.conf", "utf-8")
+  const config = parse(configContent)
+  
+  // Validate parsed configuration
+  if (!config.Interface) {
+    throw new Error("Invalid configuration: Missing Interface section")
+  }
+  
+  // Make modifications...
+  const newConfig = stringify(config)
+  await writeFile("/etc/wireguard/wg0.conf", newConfig, "utf-8")
+  
+} catch (error) {
+  if (error.code === 'ENOENT') {
+    console.error("Configuration file not found")
+  } else if (error.message.includes('Invalid configuration')) {
+    console.error("Configuration file is malformed")
+  } else {
+    console.error("Unexpected error:", error.message)
+  }
+}
+```
+
+## Best Practices
+
+### 1. Always Backup Before Modifying
+```ts
+// Create backup before making changes
+await copyFile("/etc/wireguard/wg0.conf", `/etc/wireguard/wg0.conf.backup.${Date.now()}`)
+```
+
+### 2. Validate Input Data
+```ts
+function isValidPublicKey(key) {
+  return /^[A-Za-z0-9+/]{43}=$/.test(key)
+}
+
+function isValidIP(ip) {
+  return /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/.test(ip)
+}
+```
+
+### 3. Use Proper File Permissions
+```ts
+import { chmod } from "fs/promises"
+
+await writeFile("/etc/wireguard/wg0.conf", configText, "utf-8")
+await chmod("/etc/wireguard/wg0.conf", 0o600) // Read/write for owner only
+```
+
+### 4. Handle Missing Sections Gracefully
+```ts
+const config = parse(configContent)
+
+// Ensure Peers array exists
+if (!config.Peers) {
+  config.Peers = []
+}
+
+// Safe access to Interface properties
+const listenPort = config.Interface?.ListenPort || 51820
+```
+
+## Configuration File Format
+
+The `stringify` function generates configuration files in this format:
+
+```ini
+[Interface]
+Address = 10.0.0.1/24
+ListenPort = 51820
+PrivateKey = server-private-key
+PostUp = iptables -A FORWARD -i %i -j ACCEPT
+PostDown = iptables -D FORWARD -i %i -j ACCEPT
+
+[Peer]
+PublicKey = client1-public-key
+AllowedIPs = 10.0.0.2/32
+
+[Peer]
+PublicKey = client2-public-key
+AllowedIPs = 10.0.0.3/32
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Empty Peers array**: Ensure `config.Peers = []` before adding peers
+2. **Missing Interface section**: Check that the original config has an `[Interface]` section
+3. **Invalid key format**: Validate public/private keys before using them
+4. **File permissions**: Ensure the process has write access to the config file
+
+### Debug Configuration
+
+```ts
+// Log configuration structure for debugging
+console.log("Parsed configuration:", JSON.stringify(config, null, 2))
+
+// Check specific sections
+console.log("Interface keys:", Object.keys(config.Interface || {}))
+console.log("Number of peers:", config.Peers?.length || 0)
 ```

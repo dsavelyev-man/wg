@@ -1,0 +1,369 @@
+# getPubKey
+
+Extracts the public key from a WireGuard configuration file's private key.
+
+## Overview
+
+The `getPubKey` function reads a WireGuard configuration file, extracts the private key from the Interface section, and derives the corresponding public key using WireGuard's key derivation algorithm.
+
+## Signature
+
+```ts
+getPubKey(filepath: string): Promise<{
+  publicKey: string
+}>
+```
+
+## Parameters
+
+- **`filepath`** (`string`): Path to the WireGuard configuration file
+
+## Returns
+
+Returns a Promise that resolves to an object containing:
+- **`publicKey`** (`string`): The derived public key
+
+## Basic Usage
+
+```ts
+import { getPubKey } from "@kriper0nind/wg-utils"
+
+// Extract public key from server configuration
+const result = await getPubKey("/etc/wireguard/wg0.conf")
+console.log("Server public key:", result.publicKey)
+```
+
+## Advanced Usage
+
+### Server Public Key for Client Configuration
+
+```ts
+import { getPubKey, generateKeys, initConf, addPeer } from "@kriper0nind/wg-utils"
+
+async function setupServerAndClient() {
+  // 1. Setup server
+  const serverKeys = await generateKeys()
+  await initConf("/etc/wireguard/wg0.conf", {
+    privateKey: serverKeys.privateKey,
+    port: 51820,
+    ip: "10.0.0.1"
+  })
+  
+  // 2. Get server public key
+  const serverPubKey = await getPubKey("/etc/wireguard/wg0.conf")
+  
+  // 3. Add client
+  const clientKeys = await generateKeys()
+  const clientResult = await addPeer("/etc/wireguard/wg0.conf", {
+    publicKey: clientKeys.publicKey
+  })
+  
+  // 4. Return configuration for client
+  return {
+    serverPublicKey: serverPubKey.publicKey,
+    clientPrivateKey: clientKeys.privateKey,
+    clientIP: clientResult.ip,
+    serverIP: "10.0.0.1",
+    serverPort: 51820
+  }
+}
+```
+
+### Multiple Configuration Management
+
+```ts
+async function getPublicKeysFromMultipleConfigs() {
+  const configs = ["wg0", "wg1", "wg2"]
+  const publicKeys = {}
+  
+  for (const config of configs) {
+    try {
+      const result = await getPubKey(`/etc/wireguard/${config}.conf`)
+      publicKeys[config] = result.publicKey
+      console.log(`${config} public key: ${result.publicKey}`)
+    } catch (error) {
+      console.error(`Failed to get public key for ${config}:`, error.message)
+    }
+  }
+  
+  return publicKeys
+}
+```
+
+### Key Validation
+
+```ts
+function isValidPublicKey(key: string): boolean {
+  // WireGuard public keys are 44 characters, base64 encoded
+  return /^[A-Za-z0-9+/]{43}=$/.test(key)
+}
+
+async function getValidatedPublicKey(filepath: string) {
+  try {
+    const result = await getPubKey(filepath)
+    
+    if (!isValidPublicKey(result.publicKey)) {
+      throw new Error("Invalid public key format")
+    }
+    
+    return result
+  } catch (error) {
+    console.error("Failed to get validated public key:", error.message)
+    throw error
+  }
+}
+```
+
+## Error Handling
+
+The function may throw errors in the following scenarios:
+
+- **File not found**: Configuration file doesn't exist
+- **Permission denied**: Insufficient read permissions
+- **Invalid configuration**: Malformed configuration file
+- **Missing private key**: No PrivateKey in Interface section
+- **WireGuard tools missing**: `wg pubkey` command not available
+
+```ts
+import { getPubKey } from "@kriper0nind/wg-utils"
+
+try {
+  const result = await getPubKey("/etc/wireguard/wg0.conf")
+  console.log("Public key:", result.publicKey)
+} catch (error) {
+  if (error.code === 'ENOENT') {
+    console.error("Configuration file not found")
+  } else if (error.code === 'EACCES') {
+    console.error("Permission denied - run with sudo")
+  } else if (error.message.includes('Invalid key')) {
+    console.error("Invalid private key in configuration")
+  } else if (error.message.includes('wg pubkey')) {
+    console.error("WireGuard tools not installed")
+  } else {
+    console.error("Failed to extract public key:", error.message)
+  }
+}
+```
+
+## Complete Client Configuration Generator
+
+```ts
+import { getPubKey, parse, stringify } from "@kriper0nind/wg-utils"
+import { readFile, writeFile } from "fs/promises"
+
+async function generateClientConfig(
+  serverConfigPath: string,
+  clientPrivateKey: string,
+  clientIP: string,
+  serverEndpoint: string
+) {
+  try {
+    // Get server public key
+    const serverPubKey = await getPubKey(serverConfigPath)
+    
+    // Read server config to get port
+    const serverConfigContent = await readFile(serverConfigPath, "utf-8")
+    const serverConfig = parse(serverConfigContent)
+    const serverPort = serverConfig.Interface.ListenPort || 51820
+    
+    // Create client configuration
+    const clientConfig = {
+      Interface: {
+        PrivateKey: clientPrivateKey,
+        Address: `${clientIP}/32`
+      },
+      Peers: [{
+        PublicKey: serverPubKey.publicKey,
+        Endpoint: `${serverEndpoint}:${serverPort}`,
+        AllowedIPs: "0.0.0.0/0",
+        PersistentKeepalive: 25
+      }]
+    }
+    
+    // Convert to WireGuard format
+    const clientConfigText = stringify(clientConfig)
+    
+    return clientConfigText
+    
+  } catch (error) {
+    console.error("Failed to generate client config:", error.message)
+    throw error
+  }
+}
+
+// Usage
+const clientConfig = await generateClientConfig(
+  "/etc/wireguard/wg0.conf",
+  "client-private-key",
+  "10.0.0.2",
+  "vpn.example.com"
+)
+
+console.log("Client configuration:")
+console.log(clientConfig)
+```
+
+## Server Information Extraction
+
+```ts
+async function getServerInfo(configPath: string) {
+  try {
+    // Get public key
+    const pubKeyResult = await getPubKey(configPath)
+    
+    // Read full configuration
+    const configContent = await readFile(configPath, "utf-8")
+    const config = parse(configContent)
+    
+    return {
+      publicKey: pubKeyResult.publicKey,
+      address: config.Interface.Address,
+      port: config.Interface.ListenPort,
+      peers: config.Peers?.length || 0
+    }
+  } catch (error) {
+    console.error("Failed to get server info:", error.message)
+    throw error
+  }
+}
+
+// Usage
+const serverInfo = await getServerInfo("/etc/wireguard/wg0.conf")
+console.log("Server Information:", serverInfo)
+```
+
+## Key Comparison and Validation
+
+```ts
+async function compareKeys(configPath: string, expectedPublicKey: string) {
+  try {
+    const result = await getPubKey(configPath)
+    const matches = result.publicKey === expectedPublicKey
+    
+    return {
+      actual: result.publicKey,
+      expected: expectedPublicKey,
+      matches
+    }
+  } catch (error) {
+    console.error("Key comparison failed:", error.message)
+    throw error
+  }
+}
+
+// Usage
+const comparison = await compareKeys(
+  "/etc/wireguard/wg0.conf",
+  "expected-public-key-here"
+)
+
+if (comparison.matches) {
+  console.log("Keys match!")
+} else {
+  console.log("Keys don't match!")
+  console.log("Expected:", comparison.expected)
+  console.log("Actual:", comparison.actual)
+}
+```
+
+## Configuration Backup with Key Info
+
+```ts
+import { copyFile } from "fs/promises"
+
+async function backupConfigWithKeyInfo(configPath: string) {
+  try {
+    // Get public key
+    const pubKeyResult = await getPubKey(configPath)
+    
+    // Create backup
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const backupPath = `${configPath}.backup.${timestamp}`
+    await copyFile(configPath, backupPath)
+    
+    // Create key info file
+    const keyInfoPath = `${backupPath}.keys.txt`
+    const keyInfo = `Configuration: ${configPath}
+Backup: ${backupPath}
+Public Key: ${pubKeyResult.publicKey}
+Timestamp: ${new Date().toISOString()}
+`
+    
+    await writeFile(keyInfoPath, keyInfo)
+    
+    console.log("Backup created:", backupPath)
+    console.log("Key info saved:", keyInfoPath)
+    
+    return {
+      backupPath,
+      keyInfoPath,
+      publicKey: pubKeyResult.publicKey
+    }
+    
+  } catch (error) {
+    console.error("Backup failed:", error.message)
+    throw error
+  }
+}
+```
+
+## Examples
+
+### Quick Server Setup Check
+
+```ts
+async function checkServerSetup(configPath: string) {
+  try {
+    const result = await getPubKey(configPath)
+    console.log("✅ Server configuration is valid")
+    console.log("📋 Server public key:", result.publicKey)
+    return true
+  } catch (error) {
+    console.error("❌ Server configuration issue:", error.message)
+    return false
+  }
+}
+
+// Usage
+const isValid = await checkServerSetup("/etc/wireguard/wg0.conf")
+if (isValid) {
+  console.log("Server is ready for clients")
+} else {
+  console.log("Server needs configuration")
+}
+```
+
+### Client Configuration Template
+
+```ts
+async function createClientConfigTemplate(serverConfigPath: string) {
+  const serverPubKey = await getPubKey(serverConfigPath)
+  
+  const template = `[Interface]
+PrivateKey = YOUR_CLIENT_PRIVATE_KEY_HERE
+Address = 10.0.0.X/32
+
+[Peer]
+PublicKey = ${serverPubKey.publicKey}
+Endpoint = YOUR_SERVER_IP:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+`
+  
+  return template
+}
+```
+
+## Dependencies
+
+- **`parse`**: Parses WireGuard configuration files
+- **`wg pubkey`**: WireGuard command for key derivation
+- **`fs/promises`**: For file system operations
+
+## Notes
+
+- The function extracts the private key from the `[Interface]` section
+- Public key derivation uses WireGuard's native `wg pubkey` command
+- The private key is never logged or exposed in error messages
+- This function is essential for generating client configurations
+- Always validate the returned public key format before use

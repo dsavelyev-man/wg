@@ -1,0 +1,284 @@
+# initConf
+
+Creates an initial WireGuard server configuration with proper networking setup.
+
+## Overview
+
+The `initConf` function generates a complete WireGuard server configuration file with all necessary settings for a functional VPN server, including NAT rules and firewall configuration.
+
+## Signature
+
+```ts
+initConf(filepath: string, options: {
+  privateKey: string
+  port?: number
+  ip?: string
+  interface?: string
+}): Promise<void>
+```
+
+## Parameters
+
+- **`filepath`** (`string`): Path where to save the configuration file
+- **`options`** (`object`): Configuration options
+  - **`privateKey`** (`string`): Server's private key (required)
+  - **`port`** (`number`, optional): Listening port (default: 51820)
+  - **`ip`** (`string`, optional): Server IP address (default: "10.0.0.1")
+  - **`interface`** (`string`, optional): Network interface for NAT (default: "eth0")
+
+## Returns
+
+Returns a Promise that resolves when the configuration file is created.
+
+## Basic Usage
+
+```ts
+import { initConf, generateKeys } from "@kriper0nind/wg-utils"
+
+// Generate server keys
+const serverKeys = await generateKeys()
+
+// Create basic server configuration
+await initConf("/etc/wireguard/wg0.conf", {
+  privateKey: serverKeys.privateKey
+})
+
+console.log("Server configuration created")
+```
+
+## Advanced Usage
+
+### Custom Server Settings
+
+```ts
+import { initConf, generateKeys } from "@kriper0nind/wg-utils"
+
+const serverKeys = await generateKeys()
+
+await initConf("/etc/wireguard/wg0.conf", {
+  privateKey: serverKeys.privateKey,
+  port: 51821,           // Custom port
+  ip: "192.168.1.1",    // Custom IP range
+  interface: "ens3"      // Custom network interface
+})
+```
+
+### Multiple Server Configurations
+
+```ts
+// Create different server configurations
+const configs = [
+  { name: "wg0", port: 51820, ip: "10.0.0.1" },
+  { name: "wg1", port: 51821, ip: "10.1.0.1" },
+  { name: "wg2", port: 51822, ip: "10.2.0.1" }
+]
+
+for (const config of configs) {
+  const keys = await generateKeys()
+  await initConf(`/etc/wireguard/${config.name}.conf`, {
+    privateKey: keys.privateKey,
+    port: config.port,
+    ip: config.ip
+  })
+  console.log(`Created ${config.name} configuration`)
+}
+```
+
+## Generated Configuration
+
+The function creates a configuration file with the following structure:
+
+```ini
+[Interface]
+Address = 10.0.0.1/24
+ListenPort = 51820
+PrivateKey = server-private-key
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+```
+
+### Configuration Details
+
+- **Address**: Server IP with /24 subnet mask
+- **ListenPort**: UDP port for WireGuard traffic
+- **PrivateKey**: Server's private key
+- **PostUp**: Commands to run when interface starts
+- **PostDown**: Commands to run when interface stops
+
+## Network Configuration
+
+### NAT and Firewall Rules
+
+The function automatically configures:
+
+1. **Forwarding**: Allows traffic through the WireGuard interface
+2. **NAT**: Masquerades client traffic through the server's network interface
+3. **Cleanup**: Removes rules when the interface is brought down
+
+### Custom Network Interface
+
+```ts
+// For servers with different network interfaces
+await initConf("/etc/wireguard/wg0.conf", {
+  privateKey: serverKeys.privateKey,
+  interface: "enp0s3"  // VirtualBox/VMware interface
+})
+
+// For cloud providers
+await initConf("/etc/wireguard/wg0.conf", {
+  privateKey: serverKeys.privateKey,
+  interface: "ens5"    // AWS EC2 interface
+})
+```
+
+## Complete Server Setup
+
+```ts
+import { initConf, generateKeys, addPeer, up, getPubKey } from "@kriper0nind/wg-utils"
+
+async function setupCompleteServer() {
+  try {
+    // 1. Generate server keys
+    const serverKeys = await generateKeys()
+    console.log("Server keys generated")
+
+    // 2. Create server configuration
+    await initConf("/etc/wireguard/wg0.conf", {
+      privateKey: serverKeys.privateKey,
+      port: 51820,
+      ip: "10.0.0.1",
+      interface: "eth0"
+    })
+    console.log("Server configuration created")
+
+    // 3. Add first client
+    const clientKeys = await generateKeys()
+    const clientResult = await addPeer("/etc/wireguard/wg0.conf", {
+      publicKey: clientKeys.publicKey
+    })
+    console.log(`Client added with IP: ${clientResult.ip}`)
+
+    // 4. Start the server
+    await up("wg0")
+    console.log("WireGuard server started")
+
+    // 5. Get server public key for client config
+    const serverPubKey = await getPubKey("/etc/wireguard/wg0.conf")
+    
+    return {
+      serverPublicKey: serverPubKey.publicKey,
+      clientPrivateKey: clientKeys.privateKey,
+      clientIP: clientResult.ip,
+      serverIP: "10.0.0.1",
+      serverPort: 51820
+    }
+
+  } catch (error) {
+    console.error("Server setup failed:", error.message)
+    throw error
+  }
+}
+```
+
+## Error Handling
+
+The function may throw errors in the following scenarios:
+
+- **File write errors**: Permission denied, disk full, etc.
+- **Invalid parameters**: Missing private key, invalid IP format
+- **Directory issues**: Non-existent parent directories
+
+```ts
+try {
+  await initConf("/etc/wireguard/wg0.conf", {
+    privateKey: "invalid-key-format"
+  })
+} catch (error) {
+  if (error.code === 'EACCES') {
+    console.error("Permission denied - run with sudo")
+  } else if (error.message.includes('Invalid key')) {
+    console.error("Invalid private key format")
+  } else {
+    console.error("Configuration creation failed:", error.message)
+  }
+}
+```
+
+## Security Considerations
+
+### File Permissions
+
+```ts
+import { chmod } from "fs/promises"
+
+// Create configuration
+await initConf("/etc/wireguard/wg0.conf", {
+  privateKey: serverKeys.privateKey
+})
+
+// Set secure permissions
+await chmod("/etc/wireguard/wg0.conf", 0o600)
+```
+
+### Firewall Rules
+
+The generated configuration includes iptables rules that:
+- Allow forwarding through the WireGuard interface
+- Enable NAT for client internet access
+- Clean up rules when the interface is stopped
+
+## Examples
+
+### Development Server
+
+```ts
+// Quick development setup
+const devKeys = await generateKeys()
+await initConf("/tmp/wg-dev.conf", {
+  privateKey: devKeys.privateKey,
+  port: 51820,
+  ip: "10.0.0.1"
+})
+```
+
+### Production Server
+
+```ts
+// Production server with custom settings
+const prodKeys = await generateKeys()
+await initConf("/etc/wireguard/wg0.conf", {
+  privateKey: prodKeys.privateKey,
+  port: 51820,
+  ip: "10.0.0.1",
+  interface: "eth0"
+})
+
+// Set proper permissions
+await chmod("/etc/wireguard/wg0.conf", 0o600)
+```
+
+### Cloud Server Setup
+
+```ts
+// For cloud servers (AWS, GCP, Azure)
+const cloudKeys = await generateKeys()
+await initConf("/etc/wireguard/wg0.conf", {
+  privateKey: cloudKeys.privateKey,
+  port: 51820,
+  ip: "10.0.0.1",
+  interface: "ens5"  // Common cloud interface name
+})
+```
+
+## Dependencies
+
+- **`stringify`**: Converts configuration object to WireGuard format
+- **`fs/promises`**: For file system operations
+- **iptables**: For NAT and firewall rules (system dependency)
+
+## Notes
+
+- The configuration includes automatic NAT setup for client internet access
+- PostUp/PostDown commands are essential for proper network functionality
+- The server IP (10.0.0.1) is reserved for the server, clients get 10.0.0.2+
+- Generated configuration is immediately ready for use with `wg-quick up`

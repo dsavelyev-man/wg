@@ -1,3 +1,248 @@
-# Get started
+# Getting Started
 
-Hello world!
+Welcome to `@kriper0nind/wg-utils` - a comprehensive TypeScript library for managing WireGuard VPN configurations programmatically.
+
+## What is wg-utils?
+
+`wg-utils` is a Node.js library that provides a simple and intuitive API for working with WireGuard VPN configurations. It allows you to:
+
+- Generate WireGuard key pairs
+- Create and manage WireGuard configuration files
+- Add and remove peers from existing configurations
+- Start and stop WireGuard interfaces
+- Parse and stringify WireGuard configuration files
+
+## Installation
+
+Install the package using your preferred package manager:
+
+```bash
+# Using npm
+npm install @kriper0nind/wg-utils
+
+# Using yarn
+yarn add @kriper0nind/wg-utils
+
+# Using pnpm
+pnpm add @kriper0nind/wg-utils
+```
+
+## Prerequisites
+
+Before using this library, ensure you have:
+
+- **Node.js** (version 16 or higher)
+- **WireGuard** installed on your system
+- **Root/sudo privileges** for interface management operations
+- **iptables** installed (for NAT functionality)
+
+### Installing WireGuard
+
+#### Ubuntu/Debian
+```bash
+sudo apt update
+sudo apt install wireguard
+```
+
+#### CentOS/RHEL/Fedora
+```bash
+# CentOS/RHEL
+sudo yum install epel-release
+sudo yum install wireguard-tools
+
+# Fedora
+sudo dnf install wireguard-tools
+```
+
+#### macOS
+```bash
+brew install wireguard-tools
+```
+
+## Quick Start
+
+Here's a simple example that demonstrates the core functionality:
+
+```ts
+import { 
+  generateKeys, 
+  initConf, 
+  addPeer, 
+  up, 
+  getPubKey 
+} from "@kriper0nind/wg-utils"
+
+async function setupWireGuard() {
+  try {
+    // 1. Generate server keys
+    const serverKeys = await generateKeys()
+    console.log("Server keys generated:", serverKeys)
+
+    // 2. Create initial server configuration
+    await initConf("/etc/wireguard/wg0.conf", {
+      privateKey: serverKeys.privateKey,
+      port: 51820,
+      ip: "10.0.0.1",
+      interface: "eth0"
+    })
+    console.log("Server configuration created")
+
+    // 3. Generate client keys
+    const clientKeys = await generateKeys()
+    
+    // 4. Add client as a peer
+    const result = await addPeer("/etc/wireguard/wg0.conf", {
+      publicKey: clientKeys.publicKey
+    })
+    console.log(`Client added with IP: ${result.ip}`)
+
+    // 5. Start the WireGuard interface
+    await up("wg0")
+    console.log("WireGuard interface started")
+
+    // 6. Get server public key for client configuration
+    const serverPubKey = await getPubKey("/etc/wireguard/wg0.conf")
+    console.log("Server public key:", serverPubKey.publicKey)
+
+  } catch (error) {
+    console.error("Error setting up WireGuard:", error)
+  }
+}
+
+setupWireGuard()
+```
+
+## Core Concepts
+
+### Configuration Files
+
+WireGuard uses simple text-based configuration files with two main sections:
+
+- **`[Interface]`**: Server configuration (private key, listening port, etc.)
+- **`[Peer]`**: Client configurations (public keys, allowed IPs, etc.)
+
+### Key Management
+
+WireGuard uses public-key cryptography:
+- **Private Key**: Must be kept secret, used by the server
+- **Public Key**: Can be shared, used to identify peers
+
+### IP Address Assignment
+
+The library automatically manages IP addresses:
+- Server typically gets `10.0.0.1/24`
+- Clients get sequential IPs starting from `10.0.0.2/32`
+
+## Available Functions
+
+### Configuration Management
+- **`initConf()`** - Create initial server configuration
+- **`parse()`** - Parse WireGuard config files
+- **`stringify()`** - Convert config objects to WireGuard format
+
+### Peer Management
+- **`addPeer()`** - Add a new peer to configuration
+- **`deletePeer()`** - Remove a peer from configuration
+
+### Key Operations
+- **`generateKeys()`** - Generate new key pairs
+- **`getPubKey()`** - Extract public key from private key
+
+### Interface Control
+- **`up()`** - Start WireGuard interface
+- **`down()`** - Stop WireGuard interface
+
+## Common Use Cases
+
+### 1. Setting up a VPN Server
+
+```ts
+import { generateKeys, initConf, up } from "@kriper0nind/wg-utils"
+
+// Generate server keys
+const keys = await generateKeys()
+
+// Create server configuration
+await initConf("/etc/wireguard/wg0.conf", {
+  privateKey: keys.privateKey,
+  port: 51820,
+  ip: "10.0.0.1"
+})
+
+// Start the server
+await up("wg0")
+```
+
+### 2. Adding Clients
+
+```ts
+import { generateKeys, addPeer } from "@kriper0nind/wg-utils"
+
+// Generate client keys
+const clientKeys = await generateKeys()
+
+// Add client to server config
+const result = await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: clientKeys.publicKey
+})
+
+console.log(`Client IP: ${result.ip}`)
+```
+
+### 3. Managing Existing Configurations
+
+```ts
+import { parse, stringify, readFile, writeFile } from "@kriper0nind/wg-utils"
+import { readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises"
+
+// Read and parse existing config
+const configContent = await fsReadFile("/etc/wireguard/wg0.conf", "utf-8")
+const config = parse(configContent)
+
+// Modify configuration
+config.Interface.ListenPort = 51821
+
+// Write back to file
+const newConfig = stringify(config)
+await fsWriteFile("/etc/wireguard/wg0.conf", newConfig)
+```
+
+## Error Handling
+
+The library throws errors for common issues:
+
+```ts
+try {
+  await addPeer("/nonexistent/config.conf", { publicKey: "..." })
+} catch (error) {
+  if (error.code === 'ENOENT') {
+    console.error("Configuration file not found")
+  } else {
+    console.error("Unexpected error:", error.message)
+  }
+}
+```
+
+## Security Considerations
+
+- **Private keys** are sensitive and should be stored securely
+- Always use **proper file permissions** (600) for configuration files
+- **Validate inputs** before passing them to functions
+- **Backup configurations** before making changes
+- Use **firewall rules** to restrict access to WireGuard ports
+
+## Next Steps
+
+- Learn about [Configuration Management](/working-with-config)
+- Explore [Peer Management](/add-peer)
+- Check out the [API Reference](/api-reference)
+
+## Getting Help
+
+- **GitHub Issues**: [Report bugs or request features](https://github.com/dsavelyev-man/wg/issues)
+- **Documentation**: Browse the complete API documentation
+- **Examples**: Check the examples directory for more use cases
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/dsavelyev-man/wg/blob/main/LICENSE) file for details.

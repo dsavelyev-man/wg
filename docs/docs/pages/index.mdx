@@ -5,11 +5,194 @@ layout: landing
 import { HomePage } from 'vocs/components'
 
 <HomePage.Root>
-  <HomePage.Tagline>Wireguard utils</HomePage.Tagline>
+  <HomePage.Tagline>
+    WireGuard Utils
+  </HomePage.Tagline>
+  
   <HomePage.InstallPackage name="@kriper0nind/wg-utils" type="install" />
-  <HomePage.Description>Created for working with Wireguard</HomePage.Description>
+  
+  <HomePage.Description>
+    A powerful TypeScript library for programmatically managing WireGuard VPN configurations. 
+    Generate keys, manage peers, and control interfaces with simple, intuitive APIs.
+  </HomePage.Description>
+  
   <HomePage.Buttons>
-    <HomePage.Button href="/getting-started" variant="accent">Get started</HomePage.Button>
-    <HomePage.Button href="https://github.com/dsavelyev-man/wg">GitHub</HomePage.Button>
+    <HomePage.Button href="/getting-started" variant="accent">
+      🚀 Get Started
+    </HomePage.Button>
+    <HomePage.Button href="https://github.com/dsavelyev-man/wg" variant="secondary">
+      📚 GitHub
+    </HomePage.Button>
   </HomePage.Buttons>
 </HomePage.Root>
+
+## ✨ Features
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', margin: '2rem 0' }}>
+
+<div style={{ padding: '1.5rem', borderRadius: '12px', background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', color: 'white', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
+  <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontWeight: '600' }}>🔑 Key Management</h3>
+  <p style={{ margin: '0', opacity: '0.9' }}>Generate WireGuard key pairs securely with built-in key generation utilities.</p>
+</div>
+
+<div style={{ padding: '1.5rem', borderRadius: '12px', background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', color: 'white', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
+  <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontWeight: '600' }}>⚙️ Configuration Management</h3>
+  <p style={{ margin: '0', opacity: '0.9' }}>Parse, modify, and stringify WireGuard configuration files with ease.</p>
+</div>
+
+<div style={{ padding: '1.5rem', borderRadius: '12px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', color: 'white', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
+  <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontWeight: '600' }}>👥 Peer Management</h3>
+  <p style={{ margin: '0', opacity: '0.9' }}>Add and remove peers automatically with intelligent IP assignment.</p>
+</div>
+
+<div style={{ padding: '1.5rem', borderRadius: '12px', background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', color: 'white', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
+  <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontWeight: '600' }}>🔌 Interface Control</h3>
+  <p style={{ margin: '0', opacity: '0.9' }}>Start and stop WireGuard interfaces programmatically.</p>
+</div>
+
+<div style={{ padding: '1.5rem', borderRadius: '12px', background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', color: '#333', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
+  <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontWeight: '600' }}>🛡️ Type Safety</h3>
+  <p style={{ margin: '0', opacity: '0.8' }}>Built with TypeScript for full type safety and excellent IDE support.</p>
+</div>
+
+<div style={{ padding: '1.5rem', borderRadius: '12px', background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)', color: '#333', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
+  <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontWeight: '600' }}>⚡ Easy to Use</h3>
+  <p style={{ margin: '0', opacity: '0.8' }}>Simple, intuitive APIs that make WireGuard management effortless.</p>
+</div>
+
+</div>
+
+## 🚀 Quick Start
+
+```ts
+import { generateKeys, initConf, addPeer, up } from "@kriper0nind/wg-utils"
+
+async function setupVPN() {
+  // Generate server keys
+  const serverKeys = await generateKeys()
+  
+  // Create server configuration
+  await initConf("/etc/wireguard/wg0.conf", {
+    privateKey: serverKeys.privateKey,
+    port: 51820,
+    ip: "10.0.0.1"
+  })
+  
+  // Add a client
+  const clientKeys = await generateKeys()
+  const result = await addPeer("/etc/wireguard/wg0.conf", {
+    publicKey: clientKeys.publicKey
+  })
+  
+  // Start the VPN
+  await up("wg0")
+  
+  console.log(`Client IP: ${result.ip}`)
+}
+```
+
+## 📖 What's Inside
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', margin: '2rem 0' }}>
+
+<div style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
+  <h4 style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#2d3748' }}>Configuration Parsing</h4>
+  <p style={{ margin: '0', color: '#718096', fontSize: '0.9rem' }}>Parse WireGuard configs into JavaScript objects</p>
+</div>
+
+<div style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
+  <h4 style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#2d3748' }}>Peer Management</h4>
+  <p style={{ margin: '0', color: '#718096', fontSize: '0.9rem' }}>Add and remove peers with automatic IP assignment</p>
+</div>
+
+<div style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
+  <h4 style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#2d3748' }}>Key Generation</h4>
+  <p style={{ margin: '0', color: '#718096', fontSize: '0.9rem' }}>Generate secure WireGuard key pairs</p>
+</div>
+
+<div style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
+  <h4 style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#2d3748' }}>Interface Control</h4>
+  <p style={{ margin: '0', color: '#718096', fontSize: '0.9rem' }}>Start and stop WireGuard interfaces</p>
+</div>
+
+<div style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
+  <h4 style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#2d3748' }}>Configuration Creation</h4>
+  <p style={{ margin: '0', color: '#718096', fontSize: '0.9rem' }}>Create initial server configurations</p>
+</div>
+
+<div style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
+  <h4 style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#2d3748' }}>TypeScript Support</h4>
+  <p style={{ margin: '0', color: '#718096', fontSize: '0.9rem' }}>Full TypeScript definitions included</p>
+</div>
+
+</div>
+
+## 🎯 Perfect For
+
+<div className="flex flex-wrap gap-3 justify-center my-6">
+
+<span className="px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-600 text-white rounded-full text-sm font-medium">
+  🏢 Enterprise VPN Management
+</span>
+
+<span className="px-4 py-2 bg-gradient-to-r from-pink-500 to-red-500 text-white rounded-full text-sm font-medium">
+  🛠️ DevOps Automation
+</span>
+
+<span className="px-4 py-2 bg-gradient-to-r from-blue-400 to-cyan-400 text-white rounded-full text-sm font-medium">
+  🔧 Configuration Tools
+</span>
+
+<span className="px-4 py-2 bg-gradient-to-r from-green-400 to-teal-400 text-white rounded-full text-sm font-medium">
+  📱 Mobile App Backends
+</span>
+
+<span className="px-4 py-2 bg-gradient-to-r from-pink-400 to-yellow-400 text-white rounded-full text-sm font-medium">
+  ☁️ Cloud Infrastructure
+</span>
+
+</div>
+
+## 📊 Stats
+
+<div className="grid grid-cols-2 md:grid-cols-4 gap-6 my-8 text-center">
+
+<div className="p-8 bg-gradient-to-br from-purple-500 to-blue-600 text-white rounded-2xl shadow-lg">
+  <div className="text-4xl font-bold mb-2">10+</div>
+  <div className="opacity-90">Utility Functions</div>
+</div>
+
+<div className="p-8 bg-gradient-to-br from-pink-500 to-red-500 text-white rounded-2xl shadow-lg">
+  <div className="text-4xl font-bold mb-2">100%</div>
+  <div className="opacity-90">TypeScript</div>
+</div>
+
+<div className="p-8 bg-gradient-to-br from-blue-400 to-cyan-400 text-white rounded-2xl shadow-lg">
+  <div className="text-4xl font-bold mb-2">MIT</div>
+  <div className="opacity-90">License</div>
+</div>
+
+<div className="p-8 bg-gradient-to-br from-green-400 to-teal-400 text-white rounded-2xl shadow-lg">
+  <div className="text-4xl font-bold mb-2">0</div>
+  <div className="opacity-90">Dependencies</div>
+</div>
+
+</div>
+
+## 🚀 Ready to Get Started?
+
+<div className="text-center my-12 p-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl text-white">
+
+<h2 className="text-3xl font-bold mb-4">Start building with WireGuard Utils today!</h2>
+<p className="text-lg opacity-90 mb-6">Join developers who are already using our library to manage their VPN infrastructure.</p>
+
+<div className="flex gap-4 justify-center flex-wrap">
+  <HomePage.Button href="/getting-started" variant="accent">
+    📖 Read the Docs
+  </HomePage.Button>
+  <HomePage.Button href="https://github.com/dsavelyev-man/wg" variant="secondary">
+    ⭐ Star on GitHub
+  </HomePage.Button>
+</div>
+
+</div>

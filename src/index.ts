@@ -9,5 +9,3 @@ export { up } from "./utils/up"
 export { down } from "./utils/down"
 export { initConf } from "./utils/initConf"
 export { getPubKey } from "./utils/getPubkey"
-
-getPubKey("/etc/wireguard/wg0.conf")
