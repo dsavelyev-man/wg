@@ -118,7 +118,7 @@ await writeFile("/etc/wireguard/wg0.conf", newConfig)
 
 ## Documentation
 
-📖 **[Full Documentation](https://dsavelyev-man.github.io/wg)** - Complete API reference and guides
+📖 **[Full Documentation](https://wg-mu.vercel.app)** - Complete API reference and guides
 
 ## License
 

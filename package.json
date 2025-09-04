@@ -11,6 +11,7 @@
     "type": "git",
     "url": "https://github.com/dsavelyev-man/wg.git"
   },
+  "homepage": "https://wg-mu.vercel.app",
   "author": "dsavelyev-man",
   "license": "MIT",
   "private": false,
