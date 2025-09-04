@@ -13,7 +13,6 @@
     "network",
     "security",
     "tunnel",
-    "interface",
     "wg",
     "wg-quick",
     "iptables",
