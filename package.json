@@ -7,6 +7,18 @@
   "files": [
     "dist"
   ],
+  "keywords": [
+    "wireguard",
+    "vpn",
+    "network",
+    "security",
+    "tunnel",
+    "interface",
+    "wg",
+    "wg-quick",
+    "iptables",
+    "nat"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/dsavelyev-man/wg.git"
