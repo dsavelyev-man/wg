@@ -10,13 +10,11 @@
   "keywords": [
     "wireguard",
     "vpn",
-    "network",
     "security",
     "tunnel",
     "wg",
     "wg-quick",
-    "iptables",
-    "nat"
+    "iptables"
   ],
   "repository": {
     "type": "git",
