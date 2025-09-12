@@ -5,7 +5,7 @@ export const generateKeys = async (options: {
     privateKeyPath?: string
     publicKeyPath?: string
 } = {}) => {
-    const script = await exec("umask 077 && wg genkey | tee /etc/wireguard/privatekey | wg pubkey > /etc/wireguard/publickey")
+    const script = await exec("umask 077 && wg genkey > /etc/wireguard/privatekey && wg pubkey < /etc/wireguard/privatekey > /etc/wireguard/publickey")
     if(script.stderr) {
         console.error("Error generating keys:", script.stderr)
         throw new Error("Failed to generate keys")
