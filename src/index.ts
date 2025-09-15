@@ -1,5 +1,3 @@
-import { installWg } from "./utils/installWg"
-
 export { parse } from "./parser/parse"
 export { stringify } from "./parser/stringify"
 export { addPeer } from "./utils/addPeer"
