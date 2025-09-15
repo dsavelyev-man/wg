@@ -3,6 +3,15 @@ import { defineConfig } from 'vocs'
 export default defineConfig({
   title: 'WireGuard Utils',
   description: 'A powerful TypeScript library for managing WireGuard VPN configurations',
+  theme: {
+    colorScheme: 'light',
+  },
+  // Suppress React warnings
+  vite: {
+    define: {
+      'process.env.NODE_ENV': '"production"'
+    }
+  },
   sidebar: [
     {
       text: 'Getting Started',
@@ -57,6 +66,23 @@ export default defineConfig({
         {
           text: 'Interface Control',
           link: '/interface-control',
+        },
+      ],
+    },
+    {
+      text: 'Installation & Setup',
+      items: [
+        {
+          text: 'installWg',
+          link: '/install-wg',
+        },
+        {
+          text: 'getInstallInstructions',
+          link: '/get-install-instructions',
+        },
+        {
+          text: 'checkWg & requireWg',
+          link: '/check-wg',
         },
       ],
     },

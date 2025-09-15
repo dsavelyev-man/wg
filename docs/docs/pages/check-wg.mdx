@@ -1,0 +1,183 @@
+# checkWg & requireWg
+
+Check if WireGuard tools are installed and available on the system.
+
+## Overview
+
+These functions provide a way to verify WireGuard installation status before attempting to use other library functions. They help ensure that WireGuard tools are available and prevent runtime errors.
+
+## Functions
+
+### checkWg
+
+Check if WireGuard tools are installed and available.
+
+#### Signature
+
+```ts
+checkWg(): Promise<boolean>
+```
+
+#### Return Value
+
+- **Promise\<boolean\>**: Resolves to `true` if WireGuard is available, `false` otherwise
+
+#### Behavior
+
+1. **Command Execution**: Runs `wg --version` to test WireGuard availability
+2. **Error Handling**: Catches any errors from the command execution
+3. **Boolean Return**: Returns `true` for successful execution, `false` for any errors
+
+### requireWg
+
+Check if WireGuard tools are installed and throw an error if not.
+
+#### Signature
+
+```ts
+requireWg(): Promise<void>
+```
+
+#### Return Value
+
+- **Promise\<void\>**: Resolves if WireGuard is available
+
+#### Behavior
+
+1. **Installation Check**: Calls `checkWg()` to verify WireGuard availability
+2. **Error Throwing**: Throws a descriptive error if WireGuard is not found
+3. **Success**: Resolves silently if WireGuard is available
+
+## Example Usage
+
+### Basic Installation Check
+
+```ts
+import { checkWg, requireWg } from "@kriper0nind/wg-utils"
+
+// Check if WireGuard is installed
+async function checkInstallation() {
+  const isInstalled = await checkWg()
+  
+  if (isInstalled) {
+    console.log("✅ WireGuard is installed and ready")
+  } else {
+    console.log("❌ WireGuard is not installed")
+  }
+}
+```
+
+### Require WireGuard with Error Handling
+
+```ts
+import { requireWg } from "@kriper0nind/wg-utils"
+
+// Ensure WireGuard is available before proceeding
+async function ensureWireGuard() {
+  try {
+    await requireWg()
+    console.log("WireGuard is ready to use")
+    // Proceed with WireGuard operations
+  } catch (error) {
+    console.error("WireGuard requirement failed:", error.message)
+    // Handle missing WireGuard installation
+  }
+}
+```
+
+### Pre-flight Check for Library Functions
+
+```ts
+import { checkWg, addPeer, generateKeys } from "@kriper0nind/wg-utils"
+
+async function addNewPeer() {
+  // Check WireGuard availability first
+  const isReady = await checkWg()
+  
+  if (!isReady) {
+    console.error("WireGuard is not installed. Please install it first.")
+    return
+  }
+  
+  try {
+    const keys = await generateKeys()
+    await addPeer("/etc/wireguard/wg0.conf", {
+      publicKey: keys.publicKey
+    })
+    console.log("Peer added successfully")
+  } catch (error) {
+    console.error("Failed to add peer:", error.message)
+  }
+}
+```
+
+## Error Messages
+
+### requireWg Error
+
+When WireGuard is not installed, `requireWg()` throws an error with the following message:
+
+```
+WireGuard is not installed or not available in PATH. Please install WireGuard tools:
+  Ubuntu/Debian: sudo apt install wireguard
+  CentOS/RHEL: sudo yum install wireguard-tools
+  Fedora: sudo dnf install wireguard-tools
+  macOS: brew install wireguard-tools
+```
+
+## Use Cases
+
+### 1. **Pre-flight Validation**
+```ts
+// Before using any WireGuard functions
+if (!(await checkWg())) {
+  throw new Error("WireGuard not installed")
+}
+```
+
+### 2. **Graceful Degradation**
+```ts
+// Provide fallback behavior
+const canUseWireGuard = await checkWg()
+if (canUseWireGuard) {
+  // Use WireGuard features
+} else {
+  // Use alternative approach
+}
+```
+
+### 3. **User Guidance**
+```ts
+// Guide users to install WireGuard
+if (!(await checkWg())) {
+  console.log("Please install WireGuard first:")
+  console.log("Visit: https://www.wireguard.com/install/")
+}
+```
+
+### 4. **Automated Setup**
+```ts
+// Auto-install if missing
+if (!(await checkWg())) {
+  console.log("Installing WireGuard...")
+  await installWg()
+}
+```
+
+## Dependencies
+
+- **Node.js**: `child_process` for executing shell commands
+- **WireGuard**: Requires `wg` command to be available in PATH
+
+## Performance
+
+- **Fast execution**: Simple command check with minimal overhead
+- **Non-blocking**: Asynchronous execution doesn't block the event loop
+- **Cached results**: Consider caching results if called frequently
+
+## Notes
+
+- **PATH dependency**: Requires `wg` command to be available in system PATH
+- **Permission independent**: Doesn't require special permissions to check availability
+- **Platform agnostic**: Works on any platform where WireGuard is installed
+- **Error resilient**: Gracefully handles missing commands or permission issues

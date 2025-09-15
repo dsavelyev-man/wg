@@ -1,3 +1,5 @@
+import { installWg } from "./utils/installWg"
+
 export { parse } from "./parser/parse"
 export { stringify } from "./parser/stringify"
 export { addPeer } from "./utils/addPeer"
@@ -7,3 +9,5 @@ export { up } from "./utils/up"
 export { down } from "./utils/down"
 export { initConf } from "./utils/initConf"
 export { getPubKey } from "./utils/getPubkey"
+export { checkWg, requireWg } from "./utils/checkWg"
+export { installWg, getInstallInstructions } from "./utils/installWg"

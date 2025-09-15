@@ -1,0 +1,97 @@
+# installWg
+
+Install WireGuard tools on the current platform with automatic detection.
+
+## Overview
+
+The `installWg` function automatically detects your platform and available package managers, then installs WireGuard using the appropriate method. It supports multiple Linux distributions, macOS, and Windows.
+
+## Signature
+
+```ts
+installWg(options?: {
+  force?: boolean
+  silent?: boolean
+}): Promise<void>
+```
+
+## Parameters
+
+- **`options`** (optional): Installation configuration
+  - **`force`** (boolean, optional): Force installation even if WireGuard is already installed. Default: `false`
+  - **`silent`** (boolean, optional): Suppress output from package manager. Default: `false`
+
+## Return Value
+
+- **Promise\<void\>**: Resolves when installation completes successfully
+
+## Supported Platforms
+
+### Linux Distributions
+- **Ubuntu/Debian**: `sudo apt install wireguard`
+- **CentOS/RHEL**: `sudo yum install epel-release && sudo yum install wireguard-tools`
+- **Fedora**: `sudo dnf install wireguard-tools`
+- **Arch Linux**: `sudo pacman -S wireguard-tools`
+- **Alpine Linux**: `sudo apk add wireguard-tools`
+
+### macOS
+- **Homebrew**: `brew install wireguard-tools`
+
+### Windows
+- **Chocolatey**: `choco install wireguard`
+- **Winget**: `winget install WireGuard.WireGuard`
+
+## Behavior
+
+1. **Detection**: Automatically detects the current platform and available package managers
+2. **Verification**: Checks if WireGuard is already installed (unless `force` is true)
+3. **Installation**: Runs the appropriate installation command for the detected platform
+4. **Verification**: Confirms installation success by running `wg --version`
+
+## Example Usage
+
+```ts
+import { installWg } from "@kriper0nind/wg-utils"
+
+// Basic installation
+async function installWireGuard() {
+  try {
+    await installWg()
+    console.log("WireGuard installed successfully!")
+  } catch (error) {
+    console.error("Installation failed:", error.message)
+  }
+}
+
+// Silent installation for automated scripts
+async function silentInstall() {
+  await installWg({ silent: true })
+}
+
+// Force reinstall
+async function reinstall() {
+  await installWg({ force: true })
+}
+```
+
+## Error Handling
+
+The function throws descriptive errors for various failure scenarios:
+
+- **Unsupported platform**: When no supported package manager is detected
+- **Installation failure**: When the package manager command fails
+- **Permission issues**: When sudo/administrator privileges are required
+- **Verification failure**: When WireGuard installation cannot be verified
+
+## Dependencies
+
+- **Node.js**: `child_process` for executing shell commands
+- **Platform detection**: Uses `os.platform()` for platform identification
+- **Package managers**: Requires appropriate package manager to be installed
+
+## Notes
+
+- **Permissions**: May require sudo/administrator privileges on most platforms
+- **Network**: Requires internet connection to download packages
+- **Verification**: Always verifies installation by running `wg --version`
+- **Idempotent**: Safe to run multiple times (unless `force` is true)

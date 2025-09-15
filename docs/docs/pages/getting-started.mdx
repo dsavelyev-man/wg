@@ -38,13 +38,32 @@ Before using this library, ensure you have:
 
 ### Installing WireGuard
 
-#### Ubuntu/Debian
+You can install WireGuard manually or use the built-in installation function:
+
+#### Automatic Installation (Recommended)
+
+```ts
+import { installWg, checkWg } from "@kriper0nind/wg-utils"
+
+// Check if WireGuard is installed
+const isInstalled = await checkWg()
+
+if (!isInstalled) {
+  // Install WireGuard automatically
+  await installWg()
+  console.log("WireGuard installed successfully!")
+}
+```
+
+#### Manual Installation
+
+##### Ubuntu/Debian
 ```bash
 sudo apt update
 sudo apt install wireguard
 ```
 
-#### CentOS/RHEL/Fedora
+##### CentOS/RHEL/Fedora
 ```bash
 # CentOS/RHEL
 sudo yum install epel-release
@@ -54,10 +73,13 @@ sudo yum install wireguard-tools
 sudo dnf install wireguard-tools
 ```
 
-#### macOS
+##### macOS
 ```bash
 brew install wireguard-tools
 ```
+
+##### Windows
+Download and install from the [official WireGuard website](https://www.wireguard.com/install/).
 
 ## Quick Start
 

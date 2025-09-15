@@ -201,6 +201,89 @@ await down("wg0")
 console.log("WireGuard interface stopped")
 ```
 
+## Installation & Setup
+
+### `checkWg()`
+
+Checks if WireGuard tools are installed and available.
+
+**Returns:** `Promise<boolean>` - `true` if WireGuard is available, `false` otherwise
+
+**Example:**
+```ts
+import { checkWg } from "@kriper0nind/wg-utils"
+
+const isInstalled = await checkWg()
+if (isInstalled) {
+  console.log("WireGuard is ready")
+} else {
+  console.log("WireGuard not installed")
+}
+```
+
+### `requireWg()`
+
+Checks if WireGuard tools are installed and throws an error if not.
+
+**Returns:** `Promise<void>`
+
+**Throws:** Error with installation instructions if WireGuard is not found
+
+**Example:**
+```ts
+import { requireWg } from "@kriper0nind/wg-utils"
+
+try {
+  await requireWg()
+  console.log("WireGuard is ready")
+} catch (error) {
+  console.error(error.message)
+}
+```
+
+### `installWg(options?: object)`
+
+Installs WireGuard tools on the current platform with automatic detection.
+
+**Parameters:**
+- `options` (`object`, optional): Installation options
+  - `force` (`boolean`, optional): Force installation even if already installed (default: `false`)
+  - `silent` (`boolean`, optional): Suppress package manager output (default: `false`)
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```ts
+import { installWg } from "@kriper0nind/wg-utils"
+
+// Basic installation
+await installWg()
+
+// Silent installation
+await installWg({ silent: true })
+
+// Force reinstall
+await installWg({ force: true })
+```
+
+### `getInstallInstructions()`
+
+Gets platform-specific installation instructions without installing.
+
+**Returns:** `Promise<object>` - Platform info and installation command
+
+**Example:**
+```ts
+import { getInstallInstructions } from "@kriper0nind/wg-utils"
+
+const instructions = await getInstallInstructions()
+if (instructions.supported) {
+  console.log(`Run: ${instructions.command}`)
+} else {
+  console.log("Manual installation required")
+}
+```
+
 ## Error Handling
 
 All functions may throw errors in the following scenarios:
@@ -256,6 +339,19 @@ interface GetPubKeyResult {
 
 interface AddPeerResult {
   ip: string
+}
+
+interface InstallWgOptions {
+  force?: boolean
+  silent?: boolean
+}
+
+interface InstallInstructions {
+  platform: string
+  packageManager?: string
+  command?: string
+  name?: string
+  supported: boolean
 }
 ```
 
