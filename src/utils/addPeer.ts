@@ -49,54 +49,58 @@ const getNextIp = (currentIp: string) => {
  * console.log(ip) // e.g., 10.0.0.2
  * ```
  */
-export const addPeer = async (filepath: string, {
-  publicKey
-}: {
-  publicKey: string;
-}) =>{
-    const file = (await readFile(filepath)).toString()
-    const parsed = parse(file)
-    let lastMax = {
-        sum: 0,
-        index: 0
-    }
+export const addPeer = async (
+  filepath: string,
+  { publicKey }: { publicKey: string }
+) => {
+  const file = (await readFile(filepath)).toString();
+  const parsed = parse(file);
 
-    parsed["Peers"] || [].forEach((item: any, index) => {
-        const ints = item["AllowedIPs"].replace("/32", "").split(".").map((item) => parseInt(item))
-        ints[0] = ints[0] * 255 * 255 * 255
-        ints[1] = ints[1] * 255 * 255
-        ints[2] = ints[2] * 255
+  // Ensure Peers array exists
+  if (!parsed["Peers"]) {
+    parsed["Peers"] = [];
+  }
 
-        const sum = ints.reduce((accum, item) => item + accum, 0)
+  // Find the highest IPv4 address among all peers' AllowedIPs
+  let maxIpNum = ipToNumber("10.0.0.1"); // Start before the first assignable IP
 
-        if(lastMax.sum <= sum) {
-            lastMax = {
-                sum,
-                index
-            }
+  for (const peer of parsed["Peers"]) {
+    if (peer.AllowedIPs) {
+      // Only consider IPv4 /32 addresses
+      const allowed = peer.AllowedIPs.split(",").map((s: string) => s.trim());
+      for (const ipCidr of allowed) {
+        const [ip, cidr] = ipCidr.split("/");
+        if (
+          cidr === "32" &&
+          /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)
+        ) {
+          const num = ipToNumber(ip);
+          if (num > maxIpNum) {
+            maxIpNum = num;
+          }
         }
-    })
-
-    let nextIp = "10.0.0.2"
-    if(parsed["Peers"]) {
-      const lastIp = parsed["Peers"][lastMax.index]["AllowedIPs"].replace("/32", "");
-      if(lastIp) {
-        nextIp = getNextIp(lastIp)
       }
-    } else {
-      parsed["Peers"] = []
     }
-    const newPeer = {
-        PublicKey: publicKey,
-        AllowedIPs: `${nextIp}/32`,
-    }
+  }
 
-    parsed["Peers"].push(newPeer)
+  // Next IP is one after the highest found, or 10.0.0.2 if none
+  let nextIp = numberToIp(maxIpNum + 1);
+  // If no peers, assign 10.0.0.2
+  if (parsed["Peers"].length === 0) {
+    nextIp = "10.0.0.2";
+  }
 
-    const newFile = stringify(parsed)
-    await writeFile(filepath, newFile)
+  const newPeer = {
+    PublicKey: publicKey,
+    AllowedIPs: `${nextIp}/32`,
+  };
 
-    return {
-      ip: nextIp
-    }
-}
+  parsed["Peers"].push(newPeer);
+
+  const newFile = stringify(parsed);
+  await writeFile(filepath, newFile);
+
+  return {
+    ip: nextIp,
+  };
+};
