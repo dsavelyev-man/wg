@@ -11,7 +11,7 @@
  * - `config.Peers?: Array<Record<string, string | number>>`
  *
  * @param config Parsed configuration object
- * @returns WireGuard configuration text (without trailing newline)
+ * @returns WireGuard configuration text
  *
  * @example
  * ```ts
