@@ -1,6 +1,7 @@
 import { parse } from "../parser/parse"
 import { readFile, writeFile  } from "fs/promises";
 import { stringify } from "../parser/stringify";
+import { exec } from "./helpers";
 
 const ipToNumber = (ip: string) => {
   return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0);
@@ -99,6 +100,9 @@ export const addPeer = async (
 
   const newFile = stringify(parsed);
   await writeFile(filepath, newFile);
+
+  const iface = filepath.split("/").pop()?.split(".")[0];
+  await exec(`wg syncconf ${iface} < "${newFile}"`);
 
   return {
     ip: nextIp,
