@@ -1,6 +1,6 @@
 {
   "name": "@kriper0nind/wg-utils",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Wireguard tools core module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
