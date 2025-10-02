@@ -102,7 +102,7 @@ export const addPeer = async (
   await writeFile(filepath, newFile);
 
   const iface = filepath.split("/").pop()?.split(".")[0];
-  await exec(`wg syncconf ${iface} < "${newFile}"`);
+  await exec(`wg syncconf ${iface} <(wg-quick strip ${iface})`);
 
   return {
     ip: nextIp,
