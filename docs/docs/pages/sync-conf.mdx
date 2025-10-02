@@ -1,0 +1,175 @@
+# Synchronizing WireGuard Configuration
+
+Learn how to apply configuration changes to a running WireGuard interface without interrupting active connections using the `syncConf` function.
+
+## Overview
+
+The `syncConf` function allows you to apply configuration changes to a running WireGuard interface without restarting it. This is particularly useful when you need to:
+
+- Add or remove peers dynamically
+- Update interface settings
+- Apply configuration changes without disrupting active VPN connections
+
+## How It Works
+
+The `syncConf` function uses the `wg syncconf` command internally, which:
+
+1. Reads the current configuration from the running interface
+2. Strips any `wg-quick` specific directives using `wg-quick strip`
+3. Applies the changes to the interface without restarting it
+
+This process ensures that existing connections remain active while new configuration changes take effect.
+
+## Basic Usage
+
+```ts
+import { syncConf } from "@kriper0nind/wg-utils"
+
+// Synchronize configuration for interface wg0
+await syncConf("wg0")
+console.log("Configuration synchronized successfully")
+```
+
+## Common Use Cases
+
+### Adding Peers Dynamically
+
+```ts
+import { addPeer, syncConf } from "@kriper0nind/wg-utils"
+
+// Add a new peer to the configuration file
+await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: "new-peer-public-key"
+})
+
+// Apply the changes without restarting the interface
+await syncConf("wg0")
+console.log("New peer added and configuration synchronized")
+```
+
+### Removing Peers
+
+```ts
+import { deletePeer, syncConf } from "@kriper0nind/wg-utils"
+
+// Remove a peer from the configuration file
+await deletePeer("/etc/wireguard/wg0.conf", {
+  publicKey: "peer-to-remove-public-key"
+})
+
+// Apply the changes
+await syncConf("wg0")
+console.log("Peer removed and configuration synchronized")
+```
+
+### Updating Interface Settings
+
+```ts
+import { parse, stringify, writeFile, syncConf } from "@kriper0nind/wg-utils"
+import { writeFile } from "fs/promises"
+
+// Read current configuration
+const configContent = await readFile("/etc/wireguard/wg0.conf", "utf-8")
+const config = parse(configContent)
+
+// Update interface settings
+config.Interface.ListenPort = "51821"
+
+// Write updated configuration
+const updatedConfig = stringify(config)
+await writeFile("/etc/wireguard/wg0.conf", updatedConfig)
+
+// Apply changes
+await syncConf("wg0")
+console.log("Interface settings updated")
+```
+
+## Important Considerations
+
+### Prerequisites
+
+- The WireGuard interface must be already running
+- You need root/sudo privileges to modify WireGuard interfaces
+- The configuration file must be valid and properly formatted
+
+### When to Use syncConf vs Restart
+
+**Use `syncConf` when:**
+- Adding or removing peers
+- Updating peer settings (allowed IPs, endpoints, etc.)
+- Making minor configuration changes
+- You want to avoid disrupting active connections
+
+**Restart the interface when:**
+- Changing the interface's private key
+- Modifying the interface's IP address
+- Making changes that require a full restart
+- The interface is not responding properly
+
+### Error Handling
+
+```ts
+import { syncConf } from "@kriper0nind/wg-utils"
+
+try {
+  await syncConf("wg0")
+  console.log("Configuration synchronized successfully")
+} catch (error) {
+  if (error.message.includes("No such device")) {
+    console.error("Interface wg0 is not running")
+  } else if (error.message.includes("Permission denied")) {
+    console.error("Insufficient privileges - run with sudo")
+  } else {
+    console.error("Failed to synchronize configuration:", error.message)
+  }
+}
+```
+
+## Best Practices
+
+1. **Always validate configuration** before syncing
+2. **Test changes** in a development environment first
+3. **Monitor logs** after synchronization to ensure changes applied correctly
+4. **Keep backups** of working configurations
+5. **Use proper error handling** to catch and handle sync failures
+
+## Troubleshooting
+
+### Common Issues
+
+**"No such device" error:**
+- Ensure the interface is running with `wg show`
+- Check the interface name spelling
+
+**"Permission denied" error:**
+- Run with sudo privileges
+- Ensure you have the necessary permissions
+
+**Configuration not applied:**
+- Verify the configuration file syntax
+- Check WireGuard logs for specific errors
+- Ensure the interface is in a valid state
+
+### Debugging
+
+```ts
+import { exec } from "child_process"
+import { promisify } from "util"
+
+const execAsync = promisify(exec)
+
+// Check interface status
+const { stdout } = await execAsync("wg show wg0")
+console.log("Interface status:", stdout)
+
+// Check configuration
+const { stdout: config } = await execAsync("wg-quick strip wg0")
+console.log("Current config:", config)
+```
+
+## Related Functions
+
+- [`up`](./api-reference#upiface-string) - Start a WireGuard interface
+- [`down`](./api-reference#downiface-string) - Stop a WireGuard interface
+- [`addPeer`](./api-reference#addpeerfilepath-string-options-object) - Add a peer to configuration
+- [`deletePeer`](./api-reference#deletepeerfilepath-string-where-object) - Remove a peer from configuration

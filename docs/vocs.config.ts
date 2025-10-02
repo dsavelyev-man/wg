@@ -67,6 +67,10 @@ export default defineConfig({
           text: 'Interface Control',
           link: '/interface-control',
         },
+        {
+          text: 'syncConf',
+          link: '/sync-conf',
+        },
       ],
     },
     {

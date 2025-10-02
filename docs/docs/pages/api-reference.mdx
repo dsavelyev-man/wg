@@ -201,6 +201,28 @@ await down("wg0")
 console.log("WireGuard interface stopped")
 ```
 
+### `syncConf(iface: string)`
+
+Synchronizes a WireGuard interface configuration without restarting the interface.
+
+This function applies configuration changes to a running WireGuard interface by using the `wg syncconf` command. It reads the current configuration from the interface, strips any wg-quick specific directives, and applies the changes without disrupting existing connections.
+
+**Parameters:**
+- `iface` (`string`): Interface name (e.g., "wg0")
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```ts
+import { syncConf } from "@kriper0nind/wg-utils"
+
+// After modifying the configuration file, sync the changes
+await syncConf("wg0")
+console.log("Configuration synchronized")
+```
+
+**Note:** This function requires the WireGuard interface to be already running. It's particularly useful when you need to apply configuration changes without interrupting active VPN connections.
+
 ## Installation & Setup
 
 ### `checkWg()`
