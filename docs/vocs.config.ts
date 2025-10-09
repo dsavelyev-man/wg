@@ -71,6 +71,10 @@ export default defineConfig({
           text: 'syncConf',
           link: '/sync-conf',
         },
+        {
+          text: 'getLatestHandshake',
+          link: '/get-latest-handshake',
+        },
       ],
     },
     {

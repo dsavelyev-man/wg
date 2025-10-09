@@ -223,6 +223,44 @@ console.log("Configuration synchronized")
 
 **Note:** This function requires the WireGuard interface to be already running. It's particularly useful when you need to apply configuration changes without interrupting active VPN connections.
 
+### `getLatestHandshake(iface: string)`
+
+Retrieves the latest handshake information for all peers on a WireGuard interface.
+
+This function provides detailed connection information including handshake timestamps, transfer statistics, and peer endpoints. It's useful for monitoring VPN connections, debugging connectivity issues, and tracking peer activity.
+
+**Parameters:**
+- `iface` (`string`): Interface name (e.g., "wg0")
+
+**Returns:** `Promise<HandshakeInfo[]>` - Array of handshake information for each peer
+
+**Example:**
+```ts
+import { getLatestHandshake } from "@kriper0nind/wg-utils"
+
+const handshakes = await getLatestHandshake("wg0")
+console.log("Active peers:", handshakes.length)
+
+handshakes.forEach(peer => {
+  console.log(`Peer ${peer.publicKey}:`)
+  console.log(`  Latest handshake: ${peer.latestHandshake}`)
+  console.log(`  Transfer: ${peer.transfer}`)
+  console.log(`  Endpoint: ${peer.endpoint}`)
+})
+```
+
+**HandshakeInfo Interface:**
+```ts
+interface HandshakeInfo {
+  publicKey: string
+  handshake?: string
+  endpoint?: string
+  allowedIps?: string
+  latestHandshake?: string
+  transfer?: string
+}
+```
+
 ## Installation & Setup
 
 ### `checkWg()`

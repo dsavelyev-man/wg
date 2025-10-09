@@ -1,0 +1,249 @@
+# Getting Latest Handshake Information
+
+Learn how to retrieve handshake information and monitor WireGuard peer connections using the `getLatestHandshake` function.
+
+## Overview
+
+The `getLatestHandshake` function provides detailed information about all peers connected to a WireGuard interface. This includes handshake timestamps, transfer statistics, endpoints, and connection status - essential for monitoring VPN health and debugging connectivity issues.
+
+## What is a Handshake?
+
+A WireGuard handshake is a cryptographic key exchange process that establishes a secure connection between peers. The handshake:
+
+- Establishes encryption keys for secure communication
+- Verifies peer identity using public/private key pairs
+- Sets up the secure tunnel between peers
+- Must be completed before data can be transmitted
+
+## Basic Usage
+
+```ts
+import { getLatestHandshake } from "@kriper0nind/wg-utils"
+
+// Get handshake information for interface wg0
+const handshakes = await getLatestHandshake("wg0")
+console.log(`Found ${handshakes.length} peers`)
+
+// Display information for each peer
+handshakes.forEach((peer, index) => {
+  console.log(`\nPeer ${index + 1}:`)
+  console.log(`  Public Key: ${peer.publicKey}`)
+  console.log(`  Latest Handshake: ${peer.latestHandshake}`)
+  console.log(`  Endpoint: ${peer.endpoint}`)
+  console.log(`  Transfer: ${peer.transfer}`)
+})
+```
+
+## Understanding the Response
+
+The function returns an array of `HandshakeInfo` objects, each containing:
+
+```ts
+interface HandshakeInfo {
+  publicKey: string        // Peer's public key (always present)
+  handshake?: string       // Current handshake timestamp
+  endpoint?: string        // Peer's IP address and port
+  allowedIps?: string      // Allowed IP ranges for this peer
+  latestHandshake?: string // Most recent successful handshake
+  transfer?: string        // Data transfer statistics (received/sent)
+}
+```
+
+### Field Explanations
+
+- **publicKey**: The peer's public key (always present)
+- **latestHandshake**: Timestamp of the most recent successful handshake
+- **endpoint**: The peer's IP address and port (e.g., "192.168.1.100:51820")
+- **allowedIps**: IP ranges this peer is allowed to use
+- **transfer**: Data transfer statistics in human-readable format
+
+## Common Use Cases
+
+### Monitoring Connection Health
+
+```ts
+import { getLatestHandshake } from "@kriper0nind/wg-utils"
+
+async function checkConnectionHealth(iface: string) {
+  const handshakes = await getLatestHandshake(iface)
+  
+  const now = new Date()
+  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
+  
+  for (const peer of handshakes) {
+    if (peer.latestHandshake) {
+      const handshakeTime = new Date(peer.latestHandshake)
+      
+      if (handshakeTime < fiveMinutesAgo) {
+        console.warn(`⚠️  Peer ${peer.publicKey} hasn't handshaken recently`)
+        console.warn(`   Last handshake: ${peer.latestHandshake}`)
+      } else {
+        console.log(`✅ Peer ${peer.publicKey} is active`)
+        console.log(`   Last handshake: ${peer.latestHandshake}`)
+      }
+    } else {
+      console.warn(`❌ Peer ${peer.publicKey} has never handshaken`)
+    }
+  }
+}
+
+await checkConnectionHealth("wg0")
+```
+
+### Finding Inactive Peers
+
+```ts
+import { getLatestHandshake } from "@kriper0nind/wg-utils"
+
+async function findInactivePeers(iface: string, maxAgeMinutes: number = 30) {
+  const handshakes = await getLatestHandshake(iface)
+  const cutoff = new Date(Date.now() - maxAgeMinutes * 60 * 1000)
+  
+  const inactivePeers = handshakes.filter(peer => {
+    if (!peer.latestHandshake) return true
+    
+    const lastHandshake = new Date(peer.latestHandshake)
+    return lastHandshake < cutoff
+  })
+  
+  console.log(`Found ${inactivePeers.length} inactive peers (older than ${maxAgeMinutes} minutes)`)
+  inactivePeers.forEach(peer => {
+    console.log(`- ${peer.publicKey}: ${peer.latestHandshake || 'Never'}`)
+  })
+  
+  return inactivePeers
+}
+
+const inactivePeers = await findInactivePeers("wg0", 60) // 1 hour
+```
+
+### Monitoring Data Transfer
+
+```ts
+import { getLatestHandshake } from "@kriper0nind/wg-utils"
+
+async function monitorTransfer(iface: string) {
+  const handshakes = await getLatestHandshake(iface)
+  
+  console.log("Transfer Statistics:")
+  handshakes.forEach(peer => {
+    if (peer.transfer) {
+      console.log(`Peer ${peer.publicKey.substring(0, 8)}...:`)
+      console.log(`  ${peer.transfer}`)
+      console.log(`  Endpoint: ${peer.endpoint}`)
+    }
+  })
+}
+
+await monitorTransfer("wg0")
+```
+
+### Peer Status Dashboard
+
+```ts
+import { getLatestHandshake } from "@kriper0nind/wg-utils"
+
+async function peerDashboard(iface: string) {
+  const handshakes = await getLatestHandshake(iface)
+  
+  console.log(`\n📊 WireGuard Interface: ${iface}`)
+  console.log(`👥 Total Peers: ${handshakes.length}`)
+  
+  let activePeers = 0
+  let inactivePeers = 0
+  
+  handshakes.forEach((peer, index) => {
+    const isActive = peer.latestHandshake && 
+      (Date.now() - new Date(peer.latestHandshake).getTime()) < 5 * 60 * 1000
+    
+    if (isActive) activePeers++
+    else inactivePeers++
+    
+    const status = isActive ? "🟢 Active" : "🔴 Inactive"
+    console.log(`\n${index + 1}. ${status}`)
+    console.log(`   Key: ${peer.publicKey.substring(0, 16)}...`)
+    console.log(`   Endpoint: ${peer.endpoint || 'Unknown'}`)
+    console.log(`   Last Handshake: ${peer.latestHandshake || 'Never'}`)
+    if (peer.transfer) {
+      console.log(`   Transfer: ${peer.transfer}`)
+    }
+  })
+  
+  console.log(`\n📈 Summary:`)
+  console.log(`   Active: ${activePeers}`)
+  console.log(`   Inactive: ${inactivePeers}`)
+}
+
+await peerDashboard("wg0")
+```
+
+## Error Handling
+
+```ts
+import { getLatestHandshake } from "@kriper0nind/wg-utils"
+
+async function safeGetHandshakes(iface: string) {
+  try {
+    const handshakes = await getLatestHandshake(iface)
+    return handshakes
+  } catch (error) {
+    if (error.message.includes("No such device")) {
+      console.error(`Interface ${iface} does not exist or is not running`)
+    } else if (error.message.includes("Operation not permitted")) {
+      console.error("Insufficient privileges - run with sudo")
+    } else {
+      console.error("Failed to get handshake information:", error.message)
+    }
+    return []
+  }
+}
+
+const handshakes = await safeGetHandshakes("wg0")
+```
+
+## Best Practices
+
+1. **Regular Monitoring**: Check handshakes periodically to ensure connections are healthy
+2. **Age Thresholds**: Define acceptable handshake age limits (e.g., 5-30 minutes)
+3. **Logging**: Keep logs of handshake patterns for debugging
+4. **Alerting**: Set up alerts for peers that haven't handshaken recently
+5. **Cleanup**: Remove peers that have been inactive for extended periods
+
+## Troubleshooting
+
+### Common Issues
+
+**"No such device" error:**
+- Interface doesn't exist or isn't running
+- Check with `wg show` command
+
+**Empty handshake list:**
+- No peers are configured
+- Peers haven't connected yet
+- Interface might be down
+
+**Old handshake timestamps:**
+- Network connectivity issues
+- Firewall blocking connections
+- Peer configuration problems
+
+### Debugging Commands
+
+```bash
+# Check if interface exists and is running
+wg show
+
+# Check specific interface
+wg show wg0
+
+# Check interface status with more detail
+wg show wg0 dump
+```
+
+## Related Functions
+
+- [`up`](./api-reference#upiface-string) - Start a WireGuard interface
+- [`down`](./api-reference#downiface-string) - Stop a WireGuard interface
+- [`syncConf`](./api-reference#syncconfiface-string) - Synchronize interface configuration
+- [`addPeer`](./api-reference#addpeerfilepath-string-options-object) - Add a peer to configuration
+- [`deletePeer`](./api-reference#deletepeerfilepath-string-where-object) - Remove a peer from configuration
