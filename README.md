@@ -9,7 +9,13 @@ npm install @kriper0nind/wg-utils
 ```
 
 ```ts
-import { generateKeys, initConf, addPeer, up } from "@kriper0nind/wg-utils"
+import { 
+  generateKeys, 
+  generatePresharedKey, 
+  initConf, 
+  addPeer, 
+  up 
+} from "@kriper0nind/wg-utils"
 
 // 1. Generate server keys
 const serverKeys = await generateKeys()
@@ -18,13 +24,17 @@ const serverKeys = await generateKeys()
 await initConf("/etc/wireguard/wg0.conf", {
   privateKey: serverKeys.privateKey,
   port: 51820,
-  ip: "10.0.0.1"
+  ip: "10.0.0.1",
+  dns: "1.1.1.1"
 })
 
 // 3. Add a client
 const clientKeys = await generateKeys()
+const { presharedkey } = await generatePresharedKey()
 const result = await addPeer("/etc/wireguard/wg0.conf", {
-  publicKey: clientKeys.publicKey
+  publicKey: clientKeys.publicKey,
+  presharedKey: presharedkey,
+  persistentKeepalive: 25
 })
 
 // 4. Start the VPN
@@ -39,6 +49,7 @@ console.log(`Client IP: ${result.ip}`) // "10.0.0.2"
 - ⚙️ **Configuration Management** - Parse, modify, and stringify configs
 - 👥 **Peer Management** - Add/remove peers with automatic IP assignment
 - 🔌 **Interface Control** - Start/stop WireGuard interfaces programmatically
+- 🩺 **Live Monitoring** - Sync running configs and inspect handshakes
 - 🛡️ **Type Safety** - Full TypeScript support
 - ⚡ **Easy to Use** - Simple, intuitive APIs
 
@@ -50,15 +61,25 @@ console.log(`Client IP: ${result.ip}`) // "10.0.0.2"
 
 ### Key Operations
 - `generateKeys()` - Generate new key pairs
+- `generatePresharedKey()` - Create preshared keys for extra security
 - `getPubKey(filepath)` - Extract public key from private key
 
 ### Server Management
-- `initConf(filepath, options)` - Create initial server configuration
+- `initConf(filepath, options)` - Create initial server configuration with DNS/MTU/PostUp overrides
 - `up(iface)` / `down(iface)` - Control WireGuard interfaces
 
 ### Peer Management
-- `addPeer(filepath, { publicKey })` - Add peer with auto IP assignment
+- `addPeer(filepath, options)` - Add peers with auto IPs, PSKs, endpoints, keepalives
 - `deletePeer(filepath, { publicKey })` - Remove peer by public key
+
+### Monitoring & Maintenance
+- `getLatestHandshake(iface)` - Inspect live peer activity and transfer stats
+- `syncConf(iface)` - Keep running interfaces in sync with config files
+
+### Environment & Installation
+- `checkWg()` / `requireWg()` - Detect WireGuard availability
+- `installWg(options)` - Install WireGuard with platform-aware commands
+- `getInstallInstructions()` - Show commands without executing them
 
 ## Examples
 

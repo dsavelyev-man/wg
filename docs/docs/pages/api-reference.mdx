@@ -75,6 +75,28 @@ console.log(keys.publicKey)  // Generated public key
 console.log(keys.privateKey) // Generated private key
 ```
 
+### `generatePresharedKey(options?: object)`
+
+Generates a WireGuard preshared key for hardening peer tunnels.
+
+**Parameters:**
+- `options` (`object`, optional):
+  - `keyPath` (`string`, optional): Path to write the generated preshared key (default: `/etc/wireguard/presharedkey`)
+
+**Returns:** `Promise<{presharedkey: string}>`
+
+**Example:**
+```ts
+import { generatePresharedKey, addPeer } from "@kriper0nind/wg-utils"
+
+const { presharedkey } = await generatePresharedKey()
+
+await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: "client-public-key",
+  presharedKey: presharedkey
+})
+```
+
 ### `getPubKey(filepath: string)`
 
 Extracts the public key from a configuration file's private key.
@@ -105,6 +127,11 @@ Creates an initial WireGuard server configuration.
   - `port` (`number`, optional): Listening port (default: 51820)
   - `ip` (`string`, optional): Server IP address (default: "10.0.0.1")
   - `interface` (`string`, optional): Network interface for NAT (default: "eth0")
+  - `dns` (`string`, optional): DNS server pushed to clients
+  - `postUp` (`string[]`, optional): Custom commands executed after the interface starts (replaces defaults)
+  - `postDown` (`string[]`, optional): Custom commands executed when the interface stops
+  - `mtu` (`string`, optional): Interface MTU value
+  - `table` (`"auto" | "off" | string`, optional): Routing table behavior
 
 **Returns:** `Promise<void>`
 
@@ -131,6 +158,11 @@ Adds a new peer to a WireGuard configuration with automatic IP assignment.
 - `filepath` (`string`): Path to the WireGuard configuration file
 - `options` (`object`): Peer configuration
   - `publicKey` (`string`): Peer's public key
+  - `persistentKeepalive` (`number`, optional): NAT keepalive interval (seconds)
+  - `presharedKey` (`string`, optional): Preshared key from `generatePresharedKey`
+  - `allowedIPs` (`string`, optional): Custom AllowedIPs string (defaults to next `/32`)
+  - `endpoint` (`string`, optional): Peer endpoint (`host:port`)
+  - `allowedApps` (`string`, optional): Pass-through metadata stored as `AllowedApps`
 
 **Returns:** `Promise<{ip: string}>` - Assigned IP address
 
@@ -383,10 +415,20 @@ interface InitConfOptions {
   port?: number
   ip?: string
   interface?: string
+  dns?: string
+  postUp?: string[]
+  postDown?: string[]
+  mtu?: string
+  table?: string | "auto" | "off"
 }
 
 interface AddPeerOptions {
   publicKey: string
+  persistentKeepalive?: number
+  presharedKey?: string
+  allowedIPs?: string
+  endpoint?: string
+  allowedApps?: string
 }
 
 interface DeletePeerOptions {
@@ -399,6 +441,10 @@ interface GetPubKeyResult {
 
 interface AddPeerResult {
   ip: string
+}
+
+interface GeneratePresharedKeyResult {
+  presharedkey: string
 }
 
 interface InstallWgOptions {

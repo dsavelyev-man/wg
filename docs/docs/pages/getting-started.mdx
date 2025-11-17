@@ -6,11 +6,13 @@ Welcome to `@kriper0nind/wg-utils` - a comprehensive TypeScript library for mana
 
 `wg-utils` is a Node.js library that provides a simple and intuitive API for working with WireGuard VPN configurations. It allows you to:
 
-- Generate WireGuard key pairs
+- Generate WireGuard key pairs and preshared keys
 - Create and manage WireGuard configuration files
 - Add and remove peers from existing configurations
-- Start and stop WireGuard interfaces
+- Start, stop, and synchronize WireGuard interfaces
 - Parse and stringify WireGuard configuration files
+- Inspect live handshakes and transfer stats
+- Detect and install WireGuard dependencies programmatically
 
 ## Installation
 
@@ -88,6 +90,7 @@ Here's a simple example that demonstrates the core functionality:
 ```ts
 import { 
   generateKeys, 
+  generatePresharedKey,
   initConf, 
   addPeer, 
   up, 
@@ -111,10 +114,13 @@ async function setupWireGuard() {
 
     // 3. Generate client keys
     const clientKeys = await generateKeys()
+    const { presharedkey } = await generatePresharedKey()
     
     // 4. Add client as a peer
     const result = await addPeer("/etc/wireguard/wg0.conf", {
-      publicKey: clientKeys.publicKey
+      publicKey: clientKeys.publicKey,
+      presharedKey: presharedkey,
+      persistentKeepalive: 25
     })
     console.log(`Client added with IP: ${result.ip}`)
 
@@ -158,21 +164,27 @@ The library automatically manages IP addresses:
 ## Available Functions
 
 ### Configuration Management
-- **`initConf()`** - Create initial server configuration
-- **`parse()`** - Parse WireGuard config files
-- **`stringify()`** - Convert config objects to WireGuard format
+- **`initConf()`** - Create initial server configuration (DNS, MTU, PostUp/PostDown)
+- **`parse()`** / **`stringify()`** - Convert between files and JS objects
+- **`syncConf()`** - Apply configuration changes to a running interface
 
 ### Peer Management
-- **`addPeer()`** - Add a new peer to configuration
+- **`addPeer()`** - Add a new peer with auto IPs, PSKs, keepalives, endpoints
 - **`deletePeer()`** - Remove a peer from configuration
 
 ### Key Operations
 - **`generateKeys()`** - Generate new key pairs
+- **`generatePresharedKey()`** - Produce preshared keys for additional encryption
 - **`getPubKey()`** - Extract public key from private key
 
-### Interface Control
-- **`up()`** - Start WireGuard interface
-- **`down()`** - Stop WireGuard interface
+### Interface & Monitoring
+- **`up()`** / **`down()`** - Start or stop WireGuard interfaces
+- **`getLatestHandshake()`** - Inspect live peer activity and transfer stats
+
+### Environment & Installation
+- **`checkWg()`** / **`requireWg()`** - Verify WireGuard availability
+- **`installWg()`** - Install WireGuard via detected package manager
+- **`getInstallInstructions()`** - Retrieve platform-specific install commands without executing them
 
 ## Common Use Cases
 
@@ -214,7 +226,7 @@ console.log(`Client IP: ${result.ip}`)
 ### 3. Managing Existing Configurations
 
 ```ts
-import { parse, stringify, readFile, writeFile } from "@kriper0nind/wg-utils"
+import { parse, stringify, syncConf } from "@kriper0nind/wg-utils"
 import { readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises"
 
 // Read and parse existing config
@@ -227,6 +239,21 @@ config.Interface.ListenPort = 51821
 // Write back to file
 const newConfig = stringify(config)
 await fsWriteFile("/etc/wireguard/wg0.conf", newConfig)
+
+// Apply changes without dropping tunnels
+await syncConf("wg0")
+```
+
+### 4. Monitoring Live Peers
+
+```ts
+import { getLatestHandshake } from "@kriper0nind/wg-utils"
+
+const peers = await getLatestHandshake("wg0")
+
+for (const peer of peers) {
+  console.log(peer.publicKey, peer.latestHandshake, peer.transfer)
+}
 ```
 
 ## Error Handling

@@ -9,7 +9,14 @@ The `addPeer` function automatically adds a new peer to an existing WireGuard co
 ## Signature
 
 ```ts
-addPeer(filepath: string, options: { publicKey: string }): Promise<{ ip: string }>
+addPeer(filepath: string, options: { 
+  publicKey: string
+  persistentKeepalive?: number
+  presharedKey?: string
+  allowedIPs?: string
+  endpoint?: string
+  allowedApps?: string
+}): Promise<{ ip: string }>
 ```
 
 ## Parameters
@@ -17,6 +24,11 @@ addPeer(filepath: string, options: { publicKey: string }): Promise<{ ip: string 
 - **`filepath`** (`string`): Path to the WireGuard configuration file (e.g., `/etc/wireguard/wg0.conf`)
 - **`options`** (`object`): Configuration options for the new peer
   - **`publicKey`** (`string`): The public key of the peer to add
+  - **`persistentKeepalive`** (`number`, optional): Interval in seconds for NAT keepalives
+  - **`presharedKey`** (`string`, optional): PSK from `generatePresharedKey`
+  - **`allowedIPs`** (`string`, optional): Custom CIDR list instead of auto `/32`
+  - **`endpoint`** (`string`, optional): Host/IP and port of the peer
+  - **`allowedApps`** (`string`, optional): Custom helper metadata (non-standard WireGuard key)
 
 ## Returns
 
@@ -37,19 +49,32 @@ Returns a Promise that resolves to an object containing:
 3. Calculates the next available IP address
 4. Creates a new peer entry with the provided public key
 5. Writes the updated configuration back to the file
+6. Calls `wg syncconf <iface>` to apply the change to the running interface without downtime
+
+## Optional Peer Fields
+
+- **Persistent Keepalive**: Prevents idle UDP mappings from expiring (common for mobile clients)
+- **Preshared Key**: Adds an extra layer of symmetric encryption per peer
+- **Allowed IPs**: Override the auto-generated `/32` to define specific subnets or multiple CIDRs
+- **Endpoint**: Pre-configure the client's public endpoint for site-to-site setups
+- **Allowed Apps**: Extra metadata stored under `AllowedApps` for downstream tooling (ignored by WireGuard itself)
 
 ## Example Usage
 
 ### Basic Usage
 ```ts
-import { addPeer, generateKeys } from "@kriper0nind/wg-utils"
+import { addPeer, generateKeys, generatePresharedKey } from "@kriper0nind/wg-utils"
 
 // Generate new key pair
 const keys = await generateKeys()
 
 // Add peer to configuration
+const { presharedkey } = await generatePresharedKey()
+
 const result = await addPeer("/etc/wireguard/wg0.conf", {
     publicKey: keys.publicKey,
+    presharedKey: presharedkey,
+    persistentKeepalive: 25
 })
 
 console.log(`New peer added with IP: ${result.ip}`)
@@ -81,6 +106,8 @@ const existingPublicKey = "your-existing-public-key-here"
 
 const result = await addPeer("/etc/wireguard/wg0.conf", {
     publicKey: existingPublicKey,
+    allowedIPs: "10.0.0.50/32, 192.168.10.0/24",
+    endpoint: "vpn.example.com:51820"
 })
 
 console.log(`Peer added with IP: ${result.ip}`)
@@ -93,7 +120,11 @@ The function adds a peer entry in the following format to your WireGuard configu
 ```ini
 [Peer]
 PublicKey = <provided-public-key>
+PresharedKey = <optional-psk>
 AllowedIPs = <assigned-ip>/32
+Endpoint = <optional-endpoint>
+PersistentKeepalive = 25
+AllowedApps = <optional metadata>
 ```
 
 ## Error Handling
@@ -103,6 +134,7 @@ The function may throw errors in the following scenarios:
 - **Permission denied**: If the file cannot be read or written
 - **Invalid configuration**: If the existing configuration file is malformed
 - **File system errors**: If there are issues writing to the file
+- **Sync failures**: If `wg syncconf` fails (e.g., interface not running)
 
 ## Dependencies
 
@@ -113,7 +145,8 @@ The function may throw errors in the following scenarios:
 ## Notes
 
 - The function automatically creates a `Peers` array if none exists
-- IP addresses are assigned sequentially starting from `10.0.0.2`
+- IP addresses are assigned sequentially starting from `10.0.0.2` unless `allowedIPs` is provided
 - The function preserves all existing configuration and comments
-- All peers are assigned `/32` subnet masks for individual client connections
-- The configuration file is overwritten with the updated content
+- Custom `allowedIPs` strings are written verbatim, so you can supply multiple CIDRs separated by commas
+- After writing the file the interface is synchronized via `wg syncconf`, so active tunnels pick up the change immediately
+- `AllowedApps` is optional metadata for downstream tooling—WireGuard ignores unknown keys

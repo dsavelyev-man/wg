@@ -32,13 +32,15 @@ export const generateKeys = async (options: {
     privateKeyPath?: string
     publicKeyPath?: string
 } = {}) => {
-    const script = await exec("umask 077 && wg genkey > /etc/wireguard/privatekey && wg pubkey < /etc/wireguard/privatekey > /etc/wireguard/publickey")
+    const privateKeyPath = options.privateKeyPath || "/etc/wireguard/privatekey"
+    const publicKeyPath = options.publicKeyPath || "/etc/wireguard/publickey"
+    const script = await exec(`umask 077 && wg genkey > ${privateKeyPath}&& wg pubkey < /etc/wireguard/privatekey > ${publicKeyPath}`)
     if(script.stderr) {
         console.error("Error generating keys:", script.stderr)
         throw new Error("Failed to generate keys")
     } else {
-        const publickey = await readFile("/etc/wireguard/publickey", "utf8")
-        const privatekey = await readFile("/etc/wireguard/privatekey", "utf8")
+        const publickey = await readFile(publicKeyPath, "utf8")
+        const privatekey = await readFile(privateKeyPath, "utf8")
         
         return {
             publicKey: publickey.trim(),

@@ -1,0 +1,91 @@
+# generatePresharedKey
+
+Generate WireGuard preshared keys (PSKs) for hardening peer links.
+
+## Overview
+
+`generatePresharedKey` wraps `wg genpsk` and returns a base64-encoded preshared key that can be attached to clients via `addPeer`. PSKs add an extra layer of symmetric encryption on top of standard WireGuard public keys.
+
+## Signature
+
+```ts
+generatePresharedKey(options?: {
+  keyPath?: string
+}): Promise<{
+  presharedkey: string
+}>
+```
+
+## Parameters
+
+- **`options`** (`object`, optional): Generation options
+  - **`keyPath`** (`string`, optional): Custom path where the generated key should be written (default: `/etc/wireguard/presharedkey`)
+
+## Returns
+
+Resolves with:
+
+- **`presharedkey`** (`string`): Trimmed preshared key ready to be passed to `addPeer`
+
+## Basic Usage
+
+```ts
+import { generatePresharedKey } from "@kriper0nind/wg-utils"
+
+const { presharedkey } = await generatePresharedKey()
+console.log("PSK:", presharedkey)
+```
+
+## Adding a Peer with a PSK
+
+```ts
+import { addPeer, generateKeys, generatePresharedKey } from "@kriper0nind/wg-utils"
+
+const clientKeys = await generateKeys()
+const { presharedkey } = await generatePresharedKey()
+
+await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: clientKeys.publicKey,
+  presharedKey: presharedkey
+})
+```
+
+## Custom Output Path
+
+```ts
+const { presharedkey } = await generatePresharedKey({
+  keyPath: "/secure/wireguard/client1.psk"
+})
+
+// Share securely with the matching client configuration
+```
+
+## Security Considerations
+
+1. Treat preshared keys like private keys—never commit or log them.
+2. Set restrictive permissions on the generated file (`chmod 600 client.psk`).
+3. Rotate PSKs whenever you rotate client key pairs.
+
+## Error Handling
+
+```ts
+try {
+  const psk = await generatePresharedKey()
+  console.log("Generated PSK", psk.presharedkey)
+} catch (error) {
+  if (error.message.includes("wg genpsk")) {
+    console.error("WireGuard tools missing from PATH")
+  } else if (error.code === "EACCES") {
+    console.error("Permission denied - run with sudo")
+  } else {
+    console.error("Failed to generate PSK:", error.message)
+  }
+}
+```
+
+## Related Topics
+
+- [`generateKeys`](/generate-keys) — create public/private key pairs
+- [`addPeer`](/add-peer) — attach peers with PSKs, keepalives, endpoints
+- [`api-reference`](/api-reference#key-management) — full function signatures
+

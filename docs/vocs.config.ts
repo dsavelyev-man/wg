@@ -38,6 +38,10 @@ export default defineConfig({
           link: '/generate-keys',
         },
         {
+          text: 'generatePresharedKey',
+          link: '/generate-preshared-key',
+        },
+        {
           text: 'getPubKey',
           link: '/get-pubkey',
         },

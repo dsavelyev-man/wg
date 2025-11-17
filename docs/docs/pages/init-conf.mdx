@@ -14,6 +14,11 @@ initConf(filepath: string, options: {
   port?: number
   ip?: string
   interface?: string
+  dns?: string
+  postUp?: string[]
+  postDown?: string[]
+  mtu?: string
+  table?: string | "auto" | "off"
 }): Promise<void>
 ```
 
@@ -25,6 +30,10 @@ initConf(filepath: string, options: {
   - **`port`** (`number`, optional): Listening port (default: 51820)
   - **`ip`** (`string`, optional): Server IP address (default: "10.0.0.1")
   - **`interface`** (`string`, optional): Network interface for NAT (default: "eth0")
+  - **`dns`** (`string`, optional): DNS server pushed to clients via `DNS =`
+  - **`postUp` / `postDown`** (`string[]`, optional): Custom lifecycle commands. Arrays are joined with `;`
+  - **`mtu`** (`string`, optional): MTU value for the interface
+  - **`table`** (`"auto" | "off" | string`, optional): Routing table behavior
 
 ## Returns
 
@@ -59,7 +68,36 @@ await initConf("/etc/wireguard/wg0.conf", {
   privateKey: serverKeys.privateKey,
   port: 51821,           // Custom port
   ip: "192.168.1.1",    // Custom IP range
-  interface: "ens3"      // Custom network interface
+  interface: "ens3",     // Custom network interface
+  dns: "9.9.9.9",
+  mtu: "1380"
+})
+```
+
+### Custom Routing Table & DNS
+
+```ts
+await initConf("/etc/wireguard/wg1.conf", {
+  privateKey: serverKeys.privateKey,
+  table: "off",           // Disable automatic routes (WG >= 0.4)
+  dns: "1.1.1.1",
+  ip: "10.50.0.1"
+})
+```
+
+### Custom PostUp/PostDown Hooks
+
+```ts
+await initConf("/etc/wireguard/wg0.conf", {
+  privateKey: serverKeys.privateKey,
+  postUp: [
+    "iptables -A INPUT -i %i -j ACCEPT",
+    "iptables -A FORWARD -i %i -j ACCEPT"
+  ],
+  postDown: [
+    "iptables -D INPUT -i %i -j ACCEPT",
+    "iptables -D FORWARD -i %i -j ACCEPT"
+  ]
 })
 ```
 
@@ -93,6 +131,9 @@ The function creates a configuration file with the following structure:
 Address = 10.0.0.1/24
 ListenPort = 51820
 PrivateKey = server-private-key
+DNS = 1.1.1.1
+MTU = 1380
+Table = auto
 PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
 ```
@@ -102,6 +143,9 @@ PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -
 - **Address**: Server IP with /24 subnet mask
 - **ListenPort**: UDP port for WireGuard traffic
 - **PrivateKey**: Server's private key
+- **DNS**: Optional DNS server passed to clients (omit if not provided)
+- **MTU**: Override interface MTU (omit if not provided)
+- **Table**: `auto`, `off`, or a table name/number for routing control
 - **PostUp**: Commands to run when interface starts
 - **PostDown**: Commands to run when interface stops
 
@@ -109,11 +153,13 @@ PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -
 
 ### NAT and Firewall Rules
 
-The function automatically configures:
+By default the function configures:
 
 1. **Forwarding**: Allows traffic through the WireGuard interface
 2. **NAT**: Masquerades client traffic through the server's network interface
 3. **Cleanup**: Removes rules when the interface is brought down
+
+If you supply `postUp`/`postDown`, those arrays fully replace the defaults so you can integrate with nftables, firewalld, or custom scripts.
 
 ### Custom Network Interface
 
@@ -250,7 +296,16 @@ await initConf("/etc/wireguard/wg0.conf", {
   privateKey: prodKeys.privateKey,
   port: 51820,
   ip: "10.0.0.1",
-  interface: "eth0"
+  interface: "eth0",
+  dns: "10.0.0.1",
+  postUp: [
+    "iptables -A FORWARD -i %i -j ACCEPT",
+    "iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE"
+  ],
+  postDown: [
+    "iptables -D FORWARD -i %i -j ACCEPT",
+    "iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE"
+  ]
 })
 
 // Set proper permissions
@@ -281,4 +336,5 @@ await initConf("/etc/wireguard/wg0.conf", {
 - The configuration includes automatic NAT setup for client internet access
 - PostUp/PostDown commands are essential for proper network functionality
 - The server IP (10.0.0.1) is reserved for the server, clients get 10.0.0.2+
+- Arrays passed to `postUp`/`postDown` are concatenated with `;` to produce the WireGuard config format
 - Generated configuration is immediately ready for use with `wg-quick up`
