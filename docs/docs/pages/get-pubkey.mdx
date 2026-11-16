@@ -21,6 +21,7 @@ getPubKey(filepath: string): Promise<{
 ## Returns
 
 Returns a Promise that resolves to an object containing:
+
 - **`publicKey`** (`string`): The derived public key
 
 ## Basic Usage
@@ -46,25 +47,25 @@ async function setupServerAndClient() {
   await initConf("/etc/wireguard/wg0.conf", {
     privateKey: serverKeys.privateKey,
     port: 51820,
-    ip: "10.0.0.1"
+    ip: "10.0.0.1",
   })
-  
+
   // 2. Get server public key
   const serverPubKey = await getPubKey("/etc/wireguard/wg0.conf")
-  
+
   // 3. Add client
   const clientKeys = await generateKeys()
   const clientResult = await addPeer("/etc/wireguard/wg0.conf", {
-    publicKey: clientKeys.publicKey
+    publicKey: clientKeys.publicKey,
   })
-  
+
   // 4. Return configuration for client
   return {
     serverPublicKey: serverPubKey.publicKey,
     clientPrivateKey: clientKeys.privateKey,
     clientIP: clientResult.ip,
     serverIP: "10.0.0.1",
-    serverPort: 51820
+    serverPort: 51820,
   }
 }
 ```
@@ -75,7 +76,7 @@ async function setupServerAndClient() {
 async function getPublicKeysFromMultipleConfigs() {
   const configs = ["wg0", "wg1", "wg2"]
   const publicKeys = {}
-  
+
   for (const config of configs) {
     try {
       const result = await getPubKey(`/etc/wireguard/${config}.conf`)
@@ -85,7 +86,7 @@ async function getPublicKeysFromMultipleConfigs() {
       console.error(`Failed to get public key for ${config}:`, error.message)
     }
   }
-  
+
   return publicKeys
 }
 ```
@@ -101,11 +102,11 @@ function isValidPublicKey(key: string): boolean {
 async function getValidatedPublicKey(filepath: string) {
   try {
     const result = await getPubKey(filepath)
-    
+
     if (!isValidPublicKey(result.publicKey)) {
       throw new Error("Invalid public key format")
     }
-    
+
     return result
   } catch (error) {
     console.error("Failed to get validated public key:", error.message)
@@ -131,13 +132,13 @@ try {
   const result = await getPubKey("/etc/wireguard/wg0.conf")
   console.log("Public key:", result.publicKey)
 } catch (error) {
-  if (error.code === 'ENOENT') {
+  if (error.code === "ENOENT") {
     console.error("Configuration file not found")
-  } else if (error.code === 'EACCES') {
+  } else if (error.code === "EACCES") {
     console.error("Permission denied - run with sudo")
-  } else if (error.message.includes('Invalid key')) {
+  } else if (error.message.includes("Invalid key")) {
     console.error("Invalid private key in configuration")
-  } else if (error.message.includes('wg pubkey')) {
+  } else if (error.message.includes("wg pubkey")) {
     console.error("WireGuard tools not installed")
   } else {
     console.error("Failed to extract public key:", error.message)
@@ -155,36 +156,37 @@ async function generateClientConfig(
   serverConfigPath: string,
   clientPrivateKey: string,
   clientIP: string,
-  serverEndpoint: string
+  serverEndpoint: string,
 ) {
   try {
     // Get server public key
     const serverPubKey = await getPubKey(serverConfigPath)
-    
+
     // Read server config to get port
     const serverConfigContent = await readFile(serverConfigPath, "utf-8")
     const serverConfig = parse(serverConfigContent)
     const serverPort = serverConfig.Interface.ListenPort || 51820
-    
+
     // Create client configuration
     const clientConfig = {
       Interface: {
         PrivateKey: clientPrivateKey,
-        Address: `${clientIP}/32`
+        Address: `${clientIP}/32`,
       },
-      Peers: [{
-        PublicKey: serverPubKey.publicKey,
-        Endpoint: `${serverEndpoint}:${serverPort}`,
-        AllowedIPs: "0.0.0.0/0",
-        PersistentKeepalive: 25
-      }]
+      Peers: [
+        {
+          PublicKey: serverPubKey.publicKey,
+          Endpoint: `${serverEndpoint}:${serverPort}`,
+          AllowedIPs: "0.0.0.0/0",
+          PersistentKeepalive: 25,
+        },
+      ],
     }
-    
+
     // Convert to WireGuard format
     const clientConfigText = stringify(clientConfig)
-    
+
     return clientConfigText
-    
   } catch (error) {
     console.error("Failed to generate client config:", error.message)
     throw error
@@ -196,7 +198,7 @@ const clientConfig = await generateClientConfig(
   "/etc/wireguard/wg0.conf",
   "client-private-key",
   "10.0.0.2",
-  "vpn.example.com"
+  "vpn.example.com",
 )
 
 console.log("Client configuration:")
@@ -210,16 +212,16 @@ async function getServerInfo(configPath: string) {
   try {
     // Get public key
     const pubKeyResult = await getPubKey(configPath)
-    
+
     // Read full configuration
     const configContent = await readFile(configPath, "utf-8")
     const config = parse(configContent)
-    
+
     return {
       publicKey: pubKeyResult.publicKey,
       address: config.Interface.Address,
       port: config.Interface.ListenPort,
-      peers: config.Peers?.length || 0
+      peers: config.Peers?.length || 0,
     }
   } catch (error) {
     console.error("Failed to get server info:", error.message)
@@ -239,11 +241,11 @@ async function compareKeys(configPath: string, expectedPublicKey: string) {
   try {
     const result = await getPubKey(configPath)
     const matches = result.publicKey === expectedPublicKey
-    
+
     return {
       actual: result.publicKey,
       expected: expectedPublicKey,
-      matches
+      matches,
     }
   } catch (error) {
     console.error("Key comparison failed:", error.message)
@@ -252,10 +254,7 @@ async function compareKeys(configPath: string, expectedPublicKey: string) {
 }
 
 // Usage
-const comparison = await compareKeys(
-  "/etc/wireguard/wg0.conf",
-  "expected-public-key-here"
-)
+const comparison = await compareKeys("/etc/wireguard/wg0.conf", "expected-public-key-here")
 
 if (comparison.matches) {
   console.log("Keys match!")
@@ -275,12 +274,12 @@ async function backupConfigWithKeyInfo(configPath: string) {
   try {
     // Get public key
     const pubKeyResult = await getPubKey(configPath)
-    
+
     // Create backup
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
     const backupPath = `${configPath}.backup.${timestamp}`
     await copyFile(configPath, backupPath)
-    
+
     // Create key info file
     const keyInfoPath = `${backupPath}.keys.txt`
     const keyInfo = `Configuration: ${configPath}
@@ -288,18 +287,17 @@ Backup: ${backupPath}
 Public Key: ${pubKeyResult.publicKey}
 Timestamp: ${new Date().toISOString()}
 `
-    
+
     await writeFile(keyInfoPath, keyInfo)
-    
+
     console.log("Backup created:", backupPath)
     console.log("Key info saved:", keyInfoPath)
-    
+
     return {
       backupPath,
       keyInfoPath,
-      publicKey: pubKeyResult.publicKey
+      publicKey: pubKeyResult.publicKey,
     }
-    
   } catch (error) {
     console.error("Backup failed:", error.message)
     throw error
@@ -338,7 +336,7 @@ if (isValid) {
 ```ts
 async function createClientConfigTemplate(serverConfigPath: string) {
   const serverPubKey = await getPubKey(serverConfigPath)
-  
+
   const template = `[Interface]
 PrivateKey = YOUR_CLIENT_PRIVATE_KEY_HERE
 Address = 10.0.0.X/32
@@ -349,7 +347,7 @@ Endpoint = YOUR_SERVER_IP:51820
 AllowedIPs = 0.0.0.0/0
 PersistentKeepalive = 25
 `
-  
+
   return template
 }
 ```

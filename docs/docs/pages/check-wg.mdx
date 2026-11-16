@@ -58,7 +58,7 @@ import { checkWg, requireWg } from "@kriper0nind/wg-utils"
 // Check if WireGuard is installed
 async function checkInstallation() {
   const isInstalled = await checkWg()
-  
+
   if (isInstalled) {
     console.log("✅ WireGuard is installed and ready")
   } else {
@@ -93,16 +93,16 @@ import { checkWg, addPeer, generateKeys } from "@kriper0nind/wg-utils"
 async function addNewPeer() {
   // Check WireGuard availability first
   const isReady = await checkWg()
-  
+
   if (!isReady) {
     console.error("WireGuard is not installed. Please install it first.")
     return
   }
-  
+
   try {
     const keys = await generateKeys()
     await addPeer("/etc/wireguard/wg0.conf", {
-      publicKey: keys.publicKey
+      publicKey: keys.publicKey,
     })
     console.log("Peer added successfully")
   } catch (error) {
@@ -128,6 +128,7 @@ WireGuard is not installed or not available in PATH. Please install WireGuard to
 ## Use Cases
 
 ### 1. **Pre-flight Validation**
+
 ```ts
 // Before using any WireGuard functions
 if (!(await checkWg())) {
@@ -136,6 +137,7 @@ if (!(await checkWg())) {
 ```
 
 ### 2. **Graceful Degradation**
+
 ```ts
 // Provide fallback behavior
 const canUseWireGuard = await checkWg()
@@ -147,6 +149,7 @@ if (canUseWireGuard) {
 ```
 
 ### 3. **User Guidance**
+
 ```ts
 // Guide users to install WireGuard
 if (!(await checkWg())) {
@@ -156,6 +159,7 @@ if (!(await checkWg())) {
 ```
 
 ### 4. **Automated Setup**
+
 ```ts
 // Auto-install if missing
 if (!(await checkWg())) {

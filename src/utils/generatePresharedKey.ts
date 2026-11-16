@@ -1,44 +1,37 @@
-import { readFile } from "fs/promises"
-import { exec } from "./helpers"
+import { chmod, mkdir, writeFile } from "fs/promises"
+import { dirname } from "path"
+import { runWg } from "../commands"
+import { assertWireGuardKey } from "./keys"
+
+export interface GeneratePresharedKeyOptions {
+  keyPath?: string
+}
+
+export interface GeneratedPresharedKey {
+  presharedkey: string
+  keyPath?: string
+}
 
 /**
- * Generate a WireGuard preshared key (PSK) using `wg genpsk`.
- *
- * Preshared keys add an extra layer of symmetric encryption on top of the
- * standard WireGuard public/private key pairs and can be attached to peers via
- * `addPeer({ presharedKey })`.
- *
- * @param options Optional generation options.
- * @param options.keyPath Optional path where the PSK should be written.
- * Defaults to `/etc/wireguard/presharedkey`. The file is created/overwritten
- * using the current process permissions, so run as root for system paths.
- * @returns Promise resolving to `{ presharedkey: string }` with the trimmed PSK.
- * @throws If the underlying `wg genpsk` command fails or the file cannot be
- * read after generation.
- *
- * @example
- * ```ts
- * const { presharedkey } = await generatePresharedKey()
- * await addPeer("/etc/wireguard/wg0.conf", {
- *   publicKey: clientKeys.publicKey,
- *   presharedKey: presharedkey
- * })
- * ```
+ * Generate a preshared key in memory, optionally writing it to disk with mode
+ * 0600.
  */
-export const generatePresharedKey = async (options: {
-    keyPath?: string
-} = {}) => {
-    const keyPath = options.keyPath || "/etc/wireguard/presharedkey"
-    const script = await exec(`wg genpsk > ${keyPath}`)
-    if(script.stderr) {
-        console.error("Error generating preshared key:", script.stderr)
-        throw new Error("Failed to generate preshared keys")
-    } else {
-        const presharedkey = await readFile(keyPath, "utf8")
-        
-        return {
-            presharedkey: presharedkey.trim(),
-        }
-    }
+export const generatePresharedKey = async (
+  options: GeneratePresharedKeyOptions = {},
+): Promise<GeneratedPresharedKey> => {
+  const presharedkey = assertWireGuardKey(
+    (await runWg(["genpsk"])).stdout,
+    "generated preshared key",
+  )
 
+  if (options.keyPath) {
+    await mkdir(dirname(options.keyPath), { recursive: true })
+    await writeFile(options.keyPath, `${presharedkey}\n`, { mode: 0o600 })
+    await chmod(options.keyPath, 0o600)
+  }
+
+  return {
+    presharedkey,
+    ...(options.keyPath ? { keyPath: options.keyPath } : {}),
+  }
 }

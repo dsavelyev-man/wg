@@ -46,7 +46,7 @@ const { presharedkey } = await generatePresharedKey()
 
 await addPeer("/etc/wireguard/wg0.conf", {
   publicKey: clientKeys.publicKey,
-  presharedKey: presharedkey
+  presharedKey: presharedkey,
 })
 ```
 
@@ -54,7 +54,7 @@ await addPeer("/etc/wireguard/wg0.conf", {
 
 ```ts
 const { presharedkey } = await generatePresharedKey({
-  keyPath: "/secure/wireguard/client1.psk"
+  keyPath: "/secure/wireguard/client1.psk",
 })
 
 // Share securely with the matching client configuration
@@ -88,4 +88,3 @@ try {
 - [`generateKeys`](/generate-keys) — create public/private key pairs
 - [`addPeer`](/add-peer) — attach peers with PSKs, keepalives, endpoints
 - [`api-reference`](/api-reference#key-management) — full function signatures
-

@@ -1,22 +1,12 @@
-import { exec } from "child_process";
+import { runCommand, runWgQuick, wireGuardWindowsPath } from "../commands"
+import { validateInterfaceName } from "./interfaceStatus"
 
-/**
- * Brings down a WireGuard interface.
- * @param iface The name of the WireGuard interface (e.g., wg0)
- * @returns Promise that resolves when the interface is brought down
- */
-export const down = (iface: string): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    exec(`wg-quick down ${iface}`, (error, stdout, stderr) => {
-      if (error) {
-        reject(
-          new Error(
-            `Failed to bring down WireGuard interface ${iface}: ${stderr || error.message}`
-          )
-        );
-        return;
-      }
-      resolve();
-    });
-  });
+/** Bring down a WireGuard interface without invoking a shell. */
+export const down = async (iface: string): Promise<void> => {
+  const name = validateInterfaceName(iface)
+  if (process.platform === "win32") {
+    await runCommand(wireGuardWindowsPath(), ["/uninstalltunnelservice", name])
+    return
+  }
+  await runWgQuick(["down", name])
 }

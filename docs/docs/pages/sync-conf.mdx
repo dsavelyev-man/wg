@@ -39,7 +39,7 @@ import { addPeer, syncConf } from "@kriper0nind/wg-utils"
 
 // Add a new peer to the configuration file
 await addPeer("/etc/wireguard/wg0.conf", {
-  publicKey: "new-peer-public-key"
+  publicKey: "new-peer-public-key",
 })
 
 // Apply the changes without restarting the interface
@@ -54,7 +54,7 @@ import { deletePeer, syncConf } from "@kriper0nind/wg-utils"
 
 // Remove a peer from the configuration file
 await deletePeer("/etc/wireguard/wg0.conf", {
-  publicKey: "peer-to-remove-public-key"
+  publicKey: "peer-to-remove-public-key",
 })
 
 // Apply the changes
@@ -95,12 +95,14 @@ console.log("Interface settings updated")
 ### When to Use syncConf vs Restart
 
 **Use `syncConf` when:**
+
 - Adding or removing peers
 - Updating peer settings (allowed IPs, endpoints, etc.)
 - Making minor configuration changes
 - You want to avoid disrupting active connections
 
 **Restart the interface when:**
+
 - Changing the interface's private key
 - Modifying the interface's IP address
 - Making changes that require a full restart
@@ -138,14 +140,17 @@ try {
 ### Common Issues
 
 **"No such device" error:**
+
 - Ensure the interface is running with `wg show`
 - Check the interface name spelling
 
 **"Permission denied" error:**
+
 - Run with sudo privileges
 - Ensure you have the necessary permissions
 
 **Configuration not applied:**
+
 - Verify the configuration file syntax
 - Check WireGuard logs for specific errors
 - Ensure the interface is in a valid state

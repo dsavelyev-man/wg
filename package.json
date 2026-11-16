@@ -1,12 +1,25 @@
 {
   "name": "@kriper0nind/wg-utils",
-  "version": "1.3.1",
-  "description": "Wireguard tools core module",
-  "main": "./dist/index.js",
+  "version": "1.4.0",
+  "description": "Type-safe WireGuard configuration, peer, key, and interface utilities",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "keywords": [
     "wireguard",
     "vpn",
@@ -25,17 +38,37 @@
   "license": "MIT",
   "private": false,
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "nodemon --exec ts-node src/index.ts",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --sourcemap",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build",
+    "prepublishOnly": "npm run check",
+    "dev": "tsx watch src/index.ts",
     "release": "release-it"
   },
-  "devDependencies": {
-    "@types/node": "^16.6.2",
-    "nodemon": "^3.1.10",
-    "release-it": "^19.0.4",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+  "dependencies": {
+    "qrcode": "^1.5.4"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "@types/qrcode": "^1.5.5",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "release-it": "^19.0.4",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^2.1.8"
+  },
+  "packageManager": "npm@12.0.2",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }

@@ -40,12 +40,12 @@ The function returns an array of `HandshakeInfo` objects, each containing:
 
 ```ts
 interface HandshakeInfo {
-  publicKey: string        // Peer's public key (always present)
-  handshake?: string       // Current handshake timestamp
-  endpoint?: string        // Peer's IP address and port
-  allowedIps?: string      // Allowed IP ranges for this peer
+  publicKey: string // Peer's public key (always present)
+  handshake?: string // Current handshake timestamp
+  endpoint?: string // Peer's IP address and port
+  allowedIps?: string // Allowed IP ranges for this peer
   latestHandshake?: string // Most recent successful handshake
-  transfer?: string        // Data transfer statistics (received/sent)
+  transfer?: string // Data transfer statistics (received/sent)
 }
 ```
 
@@ -66,14 +66,14 @@ import { getLatestHandshake } from "@kriper0nind/wg-utils"
 
 async function checkConnectionHealth(iface: string) {
   const handshakes = await getLatestHandshake(iface)
-  
+
   const now = new Date()
   const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
-  
+
   for (const peer of handshakes) {
     if (peer.latestHandshake) {
       const handshakeTime = new Date(peer.latestHandshake)
-      
+
       if (handshakeTime < fiveMinutesAgo) {
         console.warn(`⚠️  Peer ${peer.publicKey} hasn't handshaken recently`)
         console.warn(`   Last handshake: ${peer.latestHandshake}`)
@@ -98,19 +98,19 @@ import { getLatestHandshake } from "@kriper0nind/wg-utils"
 async function findInactivePeers(iface: string, maxAgeMinutes: number = 30) {
   const handshakes = await getLatestHandshake(iface)
   const cutoff = new Date(Date.now() - maxAgeMinutes * 60 * 1000)
-  
-  const inactivePeers = handshakes.filter(peer => {
+
+  const inactivePeers = handshakes.filter((peer) => {
     if (!peer.latestHandshake) return true
-    
+
     const lastHandshake = new Date(peer.latestHandshake)
     return lastHandshake < cutoff
   })
-  
+
   console.log(`Found ${inactivePeers.length} inactive peers (older than ${maxAgeMinutes} minutes)`)
-  inactivePeers.forEach(peer => {
-    console.log(`- ${peer.publicKey}: ${peer.latestHandshake || 'Never'}`)
+  inactivePeers.forEach((peer) => {
+    console.log(`- ${peer.publicKey}: ${peer.latestHandshake || "Never"}`)
   })
-  
+
   return inactivePeers
 }
 
@@ -124,9 +124,9 @@ import { getLatestHandshake } from "@kriper0nind/wg-utils"
 
 async function monitorTransfer(iface: string) {
   const handshakes = await getLatestHandshake(iface)
-  
+
   console.log("Transfer Statistics:")
-  handshakes.forEach(peer => {
+  handshakes.forEach((peer) => {
     if (peer.transfer) {
       console.log(`Peer ${peer.publicKey.substring(0, 8)}...:`)
       console.log(`  ${peer.transfer}`)
@@ -145,30 +145,30 @@ import { getLatestHandshake } from "@kriper0nind/wg-utils"
 
 async function peerDashboard(iface: string) {
   const handshakes = await getLatestHandshake(iface)
-  
+
   console.log(`\n📊 WireGuard Interface: ${iface}`)
   console.log(`👥 Total Peers: ${handshakes.length}`)
-  
+
   let activePeers = 0
   let inactivePeers = 0
-  
+
   handshakes.forEach((peer, index) => {
-    const isActive = peer.latestHandshake && 
-      (Date.now() - new Date(peer.latestHandshake).getTime()) < 5 * 60 * 1000
-    
+    const isActive =
+      peer.latestHandshake && Date.now() - new Date(peer.latestHandshake).getTime() < 5 * 60 * 1000
+
     if (isActive) activePeers++
     else inactivePeers++
-    
+
     const status = isActive ? "🟢 Active" : "🔴 Inactive"
     console.log(`\n${index + 1}. ${status}`)
     console.log(`   Key: ${peer.publicKey.substring(0, 16)}...`)
-    console.log(`   Endpoint: ${peer.endpoint || 'Unknown'}`)
-    console.log(`   Last Handshake: ${peer.latestHandshake || 'Never'}`)
+    console.log(`   Endpoint: ${peer.endpoint || "Unknown"}`)
+    console.log(`   Last Handshake: ${peer.latestHandshake || "Never"}`)
     if (peer.transfer) {
       console.log(`   Transfer: ${peer.transfer}`)
     }
   })
-  
+
   console.log(`\n📈 Summary:`)
   console.log(`   Active: ${activePeers}`)
   console.log(`   Inactive: ${inactivePeers}`)
@@ -214,15 +214,18 @@ const handshakes = await safeGetHandshakes("wg0")
 ### Common Issues
 
 **"No such device" error:**
+
 - Interface doesn't exist or isn't running
 - Check with `wg show` command
 
 **Empty handshake list:**
+
 - No peers are configured
 - Peers haven't connected yet
 - Interface might be down
 
 **Old handshake timestamps:**
+
 - Network connectivity issues
 - Firewall blocking connections
 - Peer configuration problems

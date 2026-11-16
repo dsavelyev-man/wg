@@ -1,6 +1,6 @@
 # @kriper0nind/wg-utils
 
-A powerful TypeScript library for programmatically managing WireGuard VPN configurations.
+A type-safe TypeScript library for managing WireGuard configuration files, peers, keys, client profiles, QR codes, and interfaces.
 
 ## Quick Start
 
@@ -9,137 +9,198 @@ npm install @kriper0nind/wg-utils
 ```
 
 ```ts
-import { 
-  generateKeys, 
-  generatePresharedKey, 
-  initConf, 
-  addPeer, 
-  up 
-} from "@kriper0nind/wg-utils"
+import { addPeer, generateClientConfig, generateKeys, initConf, up } from "@kriper0nind/wg-utils"
 
-// 1. Generate server keys
 const serverKeys = await generateKeys()
+const clientKeys = await generateKeys()
 
-// 2. Create server configuration
 await initConf("/etc/wireguard/wg0.conf", {
   privateKey: serverKeys.privateKey,
-  port: 51820,
   ip: "10.0.0.1",
-  dns: "1.1.1.1"
+  dns: "1.1.1.1",
 })
 
-// 3. Add a client
-const clientKeys = await generateKeys()
-const { presharedkey } = await generatePresharedKey()
-const result = await addPeer("/etc/wireguard/wg0.conf", {
+const peer = await addPeer("/etc/wireguard/wg0.conf", {
   publicKey: clientKeys.publicKey,
-  presharedKey: presharedkey,
-  persistentKeepalive: 25
+  persistentKeepalive: 25,
 })
 
-// 4. Start the VPN
-await up("wg0")
+const clientConfig = generateClientConfig({
+  privateKey: clientKeys.privateKey,
+  clientAddress: peer.address,
+  serverPublicKey: serverKeys.publicKey,
+  serverEndpoint: "vpn.example.com:51820",
+  dns: "1.1.1.1",
+  persistentKeepalive: 25,
+})
 
-console.log(`Client IP: ${result.ip}`) // "10.0.0.2"
+await up("wg0")
+console.log(clientConfig)
 ```
+
+Keys are kept in memory by default. Pass `privateKeyPath`/`publicKeyPath` or `keyPath` only when you want the library to write files, which are created with mode `0600`.
 
 ## Features
 
-- 🔑 **Key Management** - Generate WireGuard key pairs securely
-- ⚙️ **Configuration Management** - Parse, modify, and stringify configs
-- 👥 **Peer Management** - Add/remove peers with automatic IP assignment
-- 🔌 **Interface Control** - Start/stop WireGuard interfaces programmatically
-- 🩺 **Live Monitoring** - Sync running configs and inspect handshakes
-- 🛡️ **Type Safety** - Full TypeScript support
-- ⚡ **Easy to Use** - Simple, intuitive APIs
+- Typed parsing and serialization with undefined/empty field omission
+- Atomic config writes, optional backups, and `0600` permissions
+- Subnet-aware IPv4 and IPv6 peer allocation
+- Peer CRUD, enable/disable, and comment-preserving edits
+- Safe command execution without shell interpolation
+- Client config and QR code generation
+- Interface status, save, restart, and sync helpers
+- Linux, macOS, and Windows command paths
+- ESM and CommonJS builds with TypeScript declarations
 
-## Core Functions
+## Configuration API
 
-### Configuration Management
-- `parse(configText)` - Parse WireGuard configs into JavaScript objects
-- `stringify(config)` - Convert config objects back to WireGuard format
-
-### Key Operations
-- `generateKeys()` - Generate new key pairs
-- `generatePresharedKey()` - Create preshared keys for extra security
-- `getPubKey(filepath)` - Extract public key from private key
-
-### Server Management
-- `initConf(filepath, options)` - Create initial server configuration with DNS/MTU/PostUp overrides
-- `up(iface)` / `down(iface)` - Control WireGuard interfaces
-
-### Peer Management
-- `addPeer(filepath, options)` - Add peers with auto IPs, PSKs, endpoints, keepalives
-- `deletePeer(filepath, { publicKey })` - Remove peer by public key
-
-### Monitoring & Maintenance
-- `getLatestHandshake(iface)` - Inspect live peer activity and transfer stats
-- `syncConf(iface)` - Keep running interfaces in sync with config files
-
-### Environment & Installation
-- `checkWg()` / `requireWg()` - Detect WireGuard availability
-- `installWg(options)` - Install WireGuard with platform-aware commands
-- `getInstallInstructions()` - Show commands without executing them
-
-## Examples
-
-### Basic Server Setup
 ```ts
-import { generateKeys, initConf, up } from "@kriper0nind/wg-utils"
+import {
+  getPeer,
+  listPeers,
+  readConfig,
+  setPeerEnabled,
+  updatePeer,
+  writeConfig,
+} from "@kriper0nind/wg-utils"
 
-const keys = await generateKeys()
-await initConf("/etc/wireguard/wg0.conf", {
-  privateKey: keys.privateKey,
-  port: 51820,
-  ip: "10.0.0.1"
+const config = await readConfig("/etc/wireguard/wg0.conf")
+config.Interface!.ListenPort = 51821
+await writeConfig("/etc/wireguard/wg0.conf", config, { backup: true })
+
+await updatePeer("/etc/wireguard/wg0.conf", "peer-public-key", {
+  PersistentKeepalive: 25,
 })
+
+await setPeerEnabled("/etc/wireguard/wg0.conf", "peer-public-key", false)
+await setPeerEnabled("/etc/wireguard/wg0.conf", "peer-public-key", true)
+
+console.log(await listPeers("/etc/wireguard/wg0.conf"))
+console.log(await getPeer("/etc/wireguard/wg0.conf", "peer-public-key"))
+```
+
+`parse`, `stringify`, `readConfig`, and `writeConfig` use exported `WireGuardConfig`, `WireGuardInterface`, and `WireGuardPeer` types. Repeated keys such as multiple `Address` lines are merged as comma-separated values.
+
+## Peer Management
+
+```ts
+import { addPeer, deletePeer, getNextPeerAddress } from "@kriper0nind/wg-utils"
+
+const result = await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: "peer-public-key",
+  presharedKey: "preshared-key",
+  persistentKeepalive: 25,
+  sync: "auto",
+})
+
+console.log(result.address) // 10.0.0.2/32
+console.log(result.ip) // 10.0.0.2
+
+const ipv6 = getNextPeerAddress(
+  {
+    Interface: { Address: ["10.0.0.1/24", "fd00::1/64"] },
+  },
+  { family: "ipv6" },
+)
+
+await deletePeer("/etc/wireguard/wg0.conf", { publicKey: "peer-public-key" })
+```
+
+Address allocation derives the pool from `Interface.Address`, skips used addresses, supports `/32` IPv4 and `/128` IPv6 peers, and throws `AddressPoolExhaustedError` when no address remains.
+
+## Interface API
+
+```ts
+import {
+  down,
+  getInterfaceStatus,
+  getLatestHandshake,
+  isWgUp,
+  restart,
+  saveConfig,
+  syncConf,
+  up,
+} from "@kriper0nind/wg-utils"
+
 await up("wg0")
+console.log(await isWgUp("wg0"))
+console.log(await getInterfaceStatus("wg0"))
+console.log(await getLatestHandshake("wg0"))
+await syncConf("wg0")
+await saveConfig("wg0")
+await restart("wg0")
+await down("wg0")
 ```
 
-### Add Multiple Clients
+On Windows, `up`/`down` use the WireGuard tunnel service through `wireguard.exe`. You can override executable paths with:
+
+- `WG_UTILS_WG_PATH`
+- `WG_UTILS_WG_QUICK_PATH`
+- `WG_UTILS_WIREGUARD_PATH`
+
+## Client Configs and QR Codes
+
 ```ts
-import { generateKeys, addPeer } from "@kriper0nind/wg-utils"
+import { generateClientConfig, generateClientQRCode } from "@kriper0nind/wg-utils"
 
-const clients = []
-for (let i = 0; i < 5; i++) {
-  const keys = await generateKeys()
-  const result = await addPeer("/etc/wireguard/wg0.conf", {
-    publicKey: keys.publicKey
-  })
-  clients.push({ ...keys, ip: result.ip })
-}
-```
-
-### Configuration Manipulation
-```ts
-import { parse, stringify } from "@kriper0nind/wg-utils"
-import { readFile, writeFile } from "fs/promises"
-
-// Read and modify configuration
-const configContent = await readFile("/etc/wireguard/wg0.conf", "utf-8")
-const config = parse(configContent)
-
-config.Interface.ListenPort = 51821
-config.Peers.push({
-  PublicKey: "new-client-key",
-  AllowedIPs: "10.0.0.10/32"
+const configText = generateClientConfig({
+  privateKey: "client-private-key",
+  clientAddress: "10.0.0.2/32",
+  serverPublicKey: "server-public-key",
+  serverEndpoint: "vpn.example.com:51820",
+  allowedIPs: ["0.0.0.0/0", "::/0"],
+  dns: "1.1.1.1",
+  persistentKeepalive: 25,
 })
 
-// Save changes
-const newConfig = stringify(config)
-await writeFile("/etc/wireguard/wg0.conf", newConfig)
+const dataUrl = await generateClientQRCode(configText)
+const filepath = await generateClientQRCode(configText, {
+  outputPath: "/tmp/client.png",
+})
+```
+
+## Error Handling
+
+All library errors extend `WireGuardError`:
+
+- `ConfigParseError`
+- `ConfigValidationError`
+- `WgNotFoundError`
+- `CommandError`
+- `PeerNotFoundError`
+- `PeerAlreadyExistsError`
+- `AddressPoolExhaustedError`
+- `UnsupportedPlatformError`
+
+```ts
+import { ConfigValidationError, WgNotFoundError } from "@kriper0nind/wg-utils"
+
+try {
+  await up("wg0")
+} catch (error) {
+  if (error instanceof WgNotFoundError) {
+    console.error("Install WireGuard first")
+  } else if (error instanceof ConfigValidationError) {
+    console.error(error.message)
+  }
+}
 ```
 
 ## Requirements
 
-- Node.js 16+
-- WireGuard installed
-- Root/sudo privileges for interface management
-- iptables for NAT functionality
+- Node.js 20 or newer
+- WireGuard tools for key and interface operations
+- Root/sudo privileges for system interface management
+- `iptables` for the default NAT hooks generated by `initConf`
 
-## Documentation
+## Development
 
-📖 **[Full Documentation](https://wg-mu.vercel.app)** - Complete API reference and guides
+```bash
+npm ci
+npm run check
+```
+
+`npm run check` runs linting, formatting verification, type checking, tests, and the dual ESM/CJS build.
 
 ## License
 

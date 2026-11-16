@@ -1,0 +1,62 @@
+# Client Configs and QR Codes
+
+Generate complete client profiles and share them as QR codes.
+
+## Generate a config
+
+```ts
+import { generateClientConfig } from "@kriper0nind/wg-utils"
+
+const config = generateClientConfig({
+  privateKey: clientPrivateKey,
+  clientAddress: "10.0.0.2/32",
+  serverPublicKey: serverPublicKey,
+  serverEndpoint: "vpn.example.com:51820",
+  allowedIPs: ["0.0.0.0/0", "::/0"],
+  dns: "1.1.1.1",
+  persistentKeepalive: 25,
+})
+```
+
+The result is a complete `[Interface]` + `[Peer]` WireGuard configuration.
+
+## Generate a QR code
+
+```ts
+import { generateClientQRCode } from "@kriper0nind/wg-utils"
+
+const dataUrl = await generateClientQRCode(config)
+const pngPath = await generateClientQRCode(config, {
+  outputPath: "/tmp/client.png",
+})
+```
+
+For a terminal QR code:
+
+```ts
+console.log(
+  await generateClientQRCode(config, {
+    type: "terminal",
+  }),
+)
+```
+
+## End-to-end example
+
+```ts
+import { addPeer, generateClientConfig, generateKeys } from "@kriper0nind/wg-utils"
+
+const clientKeys = await generateKeys()
+const peer = await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: clientKeys.publicKey,
+  persistentKeepalive: 25,
+})
+
+const clientConfig = generateClientConfig({
+  privateKey: clientKeys.privateKey,
+  clientAddress: peer.address,
+  serverPublicKey: serverPublicKey,
+  serverEndpoint: "vpn.example.com:51820",
+  persistentKeepalive: 25,
+})
+```

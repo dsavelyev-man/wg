@@ -1,246 +1,186 @@
-import { exec } from "child_process";
-import { promisify } from "util";
-import { platform } from "os";
+import { readFile } from "fs/promises"
+import { platform } from "os"
+import { commandExists, runCommand } from "../commands"
+import { UnsupportedPlatformError } from "../errors"
 
-const execAsync = promisify(exec);
+type SupportedPlatform = "linux" | "darwin" | "win32"
 
-/**
- * Platform-specific WireGuard installation commands and detection.
- */
-const PLATFORM_COMMANDS = {
-  linux: {
-    ubuntu: {
-      detect: "which apt",
-      install: "sudo apt update && sudo apt install -y wireguard",
-      name: "Ubuntu/Debian",
-    },
-    centos: {
-      detect: "which yum",
-      install:
-        "sudo yum install -y epel-release && sudo yum install -y wireguard-tools",
-      name: "CentOS/RHEL",
-    },
-    fedora: {
-      detect: "which dnf",
-      install: "sudo dnf install -y wireguard-tools",
-      name: "Fedora",
-    },
-    arch: {
-      detect: "which pacman",
-      install: "sudo pacman -S --noconfirm wireguard-tools",
-      name: "Arch Linux",
-    },
-    alpine: {
-      detect: "which apk",
-      install: "apk add --no-cache wireguard-tools",
-      name: "Alpine Linux",
-    },
-  },
-  darwin: {
-    homebrew: {
-      detect: "which brew",
-      install: "brew install wireguard-tools",
-      name: "macOS (Homebrew)",
-    },
-  },
-  win32: {
-    chocolatey: {
-      detect: "where choco",
-      install: "choco install wireguard",
-      name: "Windows (Chocolatey)",
-    },
-    winget: {
-      detect: "where winget",
-      install: "winget install WireGuard.WireGuard",
-      name: "Windows (Winget)",
-    },
-  },
-} as const;
+interface InstallPlan {
+  platform: SupportedPlatform | string
+  packageManager?: string
+  name?: string
+  commands: string[][]
+}
 
-type Platform = keyof typeof PLATFORM_COMMANDS;
-type LinuxDistro = keyof typeof PLATFORM_COMMANDS.linux;
-type MacPackageManager = keyof typeof PLATFORM_COMMANDS.darwin;
-type WindowsPackageManager = keyof typeof PLATFORM_COMMANDS.win32;
+const readLinuxIds = async (): Promise<string[]> => {
+  try {
+    const osRelease = await readFile("/etc/os-release", "utf8")
+    const values = osRelease
+      .split(/\r?\n/)
+      .map((line) => line.match(/^(ID|ID_LIKE)=(.*)$/))
+      .filter(Boolean)
+      .map((match) => match![2].replace(/^["']|["']$/g, "").toLowerCase())
+    return values.flatMap((value) => value.split(/\s+/)).filter(Boolean)
+  } catch {
+    return []
+  }
+}
 
-/**
- * Detect the current platform and available package managers.
- */
-async function detectPlatform(): Promise<{
-  platform: Platform;
-  packageManager?: string;
-  command?: string;
-  name?: string;
-}> {
-  const currentPlatform = platform() as Platform;
+const sudo = (): string[] => (process.getuid?.() === 0 ? [] : ["sudo"])
+
+const detectInstallPlan = async (): Promise<InstallPlan> => {
+  const currentPlatform = platform()
 
   if (currentPlatform === "linux") {
-    // Try to detect Linux distribution
-    for (const [distro, config] of Object.entries(PLATFORM_COMMANDS.linux)) {
-      try {
-        await execAsync(config.detect);
-        return {
-          platform: "linux",
-          packageManager: distro,
-          command: config.install,
-          name: config.name,
-        };
-      } catch {
-        // Continue to next distro
+    const ids = await readLinuxIds()
+    if (
+      ids.some((id) => ["ubuntu", "debian", "linuxmint", "pop"].includes(id)) &&
+      (await commandExists("apt-get"))
+    ) {
+      return {
+        platform: "linux",
+        packageManager: "apt-get",
+        name: "Ubuntu/Debian",
+        commands: [
+          [...sudo(), "apt-get", "update"],
+          [...sudo(), "apt-get", "install", "-y", "wireguard"],
+        ],
       }
     }
-  } else if (currentPlatform === "darwin") {
-    // Try Homebrew
-    try {
-      await execAsync(PLATFORM_COMMANDS.darwin.homebrew.detect);
-      return {
-        platform: "darwin",
-        packageManager: "homebrew",
-        command: PLATFORM_COMMANDS.darwin.homebrew.install,
-        name: PLATFORM_COMMANDS.darwin.homebrew.name,
-      };
-    } catch {
-      // Homebrew not available
+    if (ids.some((id) => ["fedora", "rhel", "centos", "rocky", "almalinux"].includes(id))) {
+      if (await commandExists("dnf")) {
+        return {
+          platform: "linux",
+          packageManager: "dnf",
+          name: "Fedora/RHEL",
+          commands: [[...sudo(), "dnf", "install", "-y", "wireguard-tools"]],
+        }
+      }
+      if (await commandExists("yum")) {
+        return {
+          platform: "linux",
+          packageManager: "yum",
+          name: "CentOS/RHEL",
+          commands: [
+            [...sudo(), "yum", "install", "-y", "epel-release"],
+            [...sudo(), "yum", "install", "-y", "wireguard-tools"],
+          ],
+        }
+      }
     }
-  } else if (currentPlatform === "win32") {
-    // Try Chocolatey first, then Winget
-    try {
-      await execAsync(PLATFORM_COMMANDS.win32.chocolatey.detect);
+    if (ids.includes("arch") && (await commandExists("pacman"))) {
+      return {
+        platform: "linux",
+        packageManager: "pacman",
+        name: "Arch Linux",
+        commands: [[...sudo(), "pacman", "-S", "--noconfirm", "wireguard-tools"]],
+      }
+    }
+    if (ids.includes("alpine") && (await commandExists("apk"))) {
+      return {
+        platform: "linux",
+        packageManager: "apk",
+        name: "Alpine Linux",
+        commands: [["apk", "add", "--no-cache", "wireguard-tools"]],
+      }
+    }
+  }
+
+  if (currentPlatform === "darwin" && (await commandExists("brew"))) {
+    return {
+      platform: "darwin",
+      packageManager: "homebrew",
+      name: "macOS (Homebrew)",
+      commands: [["brew", "install", "wireguard-tools"]],
+    }
+  }
+
+  if (currentPlatform === "win32") {
+    if (await commandExists("choco")) {
       return {
         platform: "win32",
         packageManager: "chocolatey",
-        command: PLATFORM_COMMANDS.win32.chocolatey.install,
-        name: PLATFORM_COMMANDS.win32.chocolatey.name,
-      };
-    } catch {
-      try {
-        await execAsync(PLATFORM_COMMANDS.win32.winget.detect);
-        return {
-          platform: "win32",
-          packageManager: "winget",
-          command: PLATFORM_COMMANDS.win32.winget.install,
-          name: PLATFORM_COMMANDS.win32.winget.name,
-        };
-      } catch {
-        // Neither package manager available
+        name: "Windows (Chocolatey)",
+        commands: [["choco", "install", "wireguard", "-y"]],
+      }
+    }
+    if (await commandExists("winget")) {
+      return {
+        platform: "win32",
+        packageManager: "winget",
+        name: "Windows (Winget)",
+        commands: [
+          [
+            "winget",
+            "install",
+            "--id",
+            "WireGuard.WireGuard",
+            "--exact",
+            "--silent",
+            "--accept-package-agreements",
+            "--accept-source-agreements",
+          ],
+        ],
       }
     }
   }
 
-  return { platform: currentPlatform };
+  return { platform: currentPlatform, commands: [] }
 }
 
-/**
- * Install WireGuard tools on the current platform.
- *
- * This function automatically detects the platform and available package
- * managers, then attempts to install WireGuard using the appropriate
- * package manager.
- *
- * @param options Installation options
- * @param options.force Force installation even if WireGuard is already installed
- * @param options.silent Suppress output from package manager
- * @returns Promise that resolves when installation completes
- * @throws Error if platform is unsupported or installation fails
- *
- * @example
- * ```ts
- * import { installWg } from "@kriper0nind/wg-utils"
- *
- * try {
- *   await installWg()
- *   console.log("WireGuard installed successfully")
- * } catch (error) {
- *   console.error("Installation failed:", error.message)
- * }
- * ```
- */
-export const installWg = async (
-  options: {
-    force?: boolean;
-    silent?: boolean;
-  } = {},
-): Promise<void> => {
-  const { force = false, silent = false } = options;
+const commandToString = (parts: string[]): string => parts.join(" ")
 
-  // Check if already installed (unless forced)
+/** Install WireGuard with platform-specific commands, without shell chaining. */
+export const installWg = async (
+  options: { force?: boolean; silent?: boolean } = {},
+): Promise<void> => {
+  const { force = false, silent = false } = options
   if (!force) {
     try {
-      await execAsync("wg --version");
-      if (!silent) {
-        console.log("WireGuard is already installed");
-      }
-      return;
+      await runCommand("wg", ["--version"])
+      if (!silent) console.log("WireGuard is already installed")
+      return
     } catch {
-      // Not installed, continue with installation
+      // Continue with installation.
     }
   }
 
-  const platformInfo = await detectPlatform();
-
-  if (!platformInfo.command) {
-    throw new Error(
-      `Unsupported platform: ${platformInfo.platform}. ` +
-        "Please install WireGuard manually:\n" +
-        "  Linux: https://www.wireguard.com/install/\n" +
-        "  macOS: brew install wireguard-tools\n" +
-        "  Windows: https://www.wireguard.com/install/",
-    );
+  const plan = await detectInstallPlan()
+  if (plan.commands.length === 0) {
+    throw new UnsupportedPlatformError(
+      `Unsupported platform: ${plan.platform}. Install WireGuard manually: https://www.wireguard.com/install/`,
+    )
   }
 
-  if (!silent) {
-    console.log(`Installing WireGuard on ${platformInfo.name}...`);
-  }
-
-  try {
-    const { stdout, stderr } = await execAsync(platformInfo.command);
-
-    if (!silent) {
-      if (stdout) console.log(stdout);
-      if (stderr && !stderr.includes("warning")) console.error(stderr);
+  if (!silent) console.log(`Installing WireGuard on ${plan.name}...`)
+  for (const command of plan.commands) {
+    const [file, ...args] = command
+    const result = await runCommand(file, args, { timeoutMs: 10 * 60 * 1000 })
+    if (!silent && result.stdout) console.log(result.stdout)
+    if (!silent && result.stderr && !result.stderr.toLowerCase().includes("warning")) {
+      console.error(result.stderr)
     }
-
-    // Verify installation
-    await execAsync("wg --version");
-
-    if (!silent) {
-      console.log("WireGuard installed successfully!");
-    }
-  } catch (error: any) {
-    throw new Error(
-      `Failed to install WireGuard: ${error.message}\n` +
-        `Command: ${platformInfo.command}\n` +
-        "Please install WireGuard manually or check your permissions.",
-    );
   }
-};
 
-/**
- * Get installation instructions for the current platform.
- *
- * @returns Object containing platform info and installation command
- *
- * @example
- * ```ts
- * import { getInstallInstructions } from "@kriper0nind/wg-utils"
- *
- * const instructions = await getInstallInstructions()
- * console.log(`Install on ${instructions.name}: ${instructions.command}`)
- * ```
- */
+  await runCommand(process.env.WG_UTILS_WG_PATH || "wg", ["--version"])
+  if (!silent) console.log("WireGuard installed successfully!")
+}
+
 export const getInstallInstructions = async (): Promise<{
-  platform: string;
-  packageManager?: string;
-  command?: string;
-  name?: string;
-  supported: boolean;
+  platform: string
+  packageManager?: string
+  command?: string
+  commands: string[][]
+  name?: string
+  supported: boolean
 }> => {
-  const platformInfo = await detectPlatform();
-
+  const plan = await detectInstallPlan()
   return {
-    platform: platformInfo.platform,
-    packageManager: platformInfo.packageManager,
-    command: platformInfo.command,
-    name: platformInfo.name,
-    supported: !!platformInfo.command,
-  };
-};
+    platform: plan.platform,
+    packageManager: plan.packageManager,
+    command: plan.commands.length ? plan.commands.map(commandToString).join(" && ") : undefined,
+    commands: plan.commands,
+    name: plan.name,
+    supported: plan.commands.length > 0,
+  }
+}

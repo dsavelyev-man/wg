@@ -60,12 +60,14 @@ if (!isInstalled) {
 #### Manual Installation
 
 ##### Ubuntu/Debian
+
 ```bash
 sudo apt update
 sudo apt install wireguard
 ```
 
 ##### CentOS/RHEL/Fedora
+
 ```bash
 # CentOS/RHEL
 sudo yum install epel-release
@@ -76,11 +78,13 @@ sudo dnf install wireguard-tools
 ```
 
 ##### macOS
+
 ```bash
 brew install wireguard-tools
 ```
 
 ##### Windows
+
 Download and install from the [official WireGuard website](https://www.wireguard.com/install/).
 
 ## Quick Start
@@ -88,13 +92,13 @@ Download and install from the [official WireGuard website](https://www.wireguard
 Here's a simple example that demonstrates the core functionality:
 
 ```ts
-import { 
-  generateKeys, 
+import {
+  generateKeys,
   generatePresharedKey,
-  initConf, 
-  addPeer, 
-  up, 
-  getPubKey 
+  initConf,
+  addPeer,
+  up,
+  getPubKey,
 } from "@kriper0nind/wg-utils"
 
 async function setupWireGuard() {
@@ -108,19 +112,19 @@ async function setupWireGuard() {
       privateKey: serverKeys.privateKey,
       port: 51820,
       ip: "10.0.0.1",
-      interface: "eth0"
+      interface: "eth0",
     })
     console.log("Server configuration created")
 
     // 3. Generate client keys
     const clientKeys = await generateKeys()
     const { presharedkey } = await generatePresharedKey()
-    
+
     // 4. Add client as a peer
     const result = await addPeer("/etc/wireguard/wg0.conf", {
       publicKey: clientKeys.publicKey,
       presharedKey: presharedkey,
-      persistentKeepalive: 25
+      persistentKeepalive: 25,
     })
     console.log(`Client added with IP: ${result.ip}`)
 
@@ -131,7 +135,6 @@ async function setupWireGuard() {
     // 6. Get server public key for client configuration
     const serverPubKey = await getPubKey("/etc/wireguard/wg0.conf")
     console.log("Server public key:", serverPubKey.publicKey)
-
   } catch (error) {
     console.error("Error setting up WireGuard:", error)
   }
@@ -152,36 +155,43 @@ WireGuard uses simple text-based configuration files with two main sections:
 ### Key Management
 
 WireGuard uses public-key cryptography:
+
 - **Private Key**: Must be kept secret, used by the server
 - **Public Key**: Can be shared, used to identify peers
 
 ### IP Address Assignment
 
 The library automatically manages IP addresses:
+
 - Server typically gets `10.0.0.1/24`
 - Clients get sequential IPs starting from `10.0.0.2/32`
 
 ## Available Functions
 
 ### Configuration Management
+
 - **`initConf()`** - Create initial server configuration (DNS, MTU, PostUp/PostDown)
 - **`parse()`** / **`stringify()`** - Convert between files and JS objects
 - **`syncConf()`** - Apply configuration changes to a running interface
 
 ### Peer Management
+
 - **`addPeer()`** - Add a new peer with auto IPs, PSKs, keepalives, endpoints
 - **`deletePeer()`** - Remove a peer from configuration
 
 ### Key Operations
+
 - **`generateKeys()`** - Generate new key pairs
 - **`generatePresharedKey()`** - Produce preshared keys for additional encryption
 - **`getPubKey()`** - Extract public key from private key
 
 ### Interface & Monitoring
+
 - **`up()`** / **`down()`** - Start or stop WireGuard interfaces
 - **`getLatestHandshake()`** - Inspect live peer activity and transfer stats
 
 ### Environment & Installation
+
 - **`checkWg()`** / **`requireWg()`** - Verify WireGuard availability
 - **`installWg()`** - Install WireGuard via detected package manager
 - **`getInstallInstructions()`** - Retrieve platform-specific install commands without executing them
@@ -200,7 +210,7 @@ const keys = await generateKeys()
 await initConf("/etc/wireguard/wg0.conf", {
   privateKey: keys.privateKey,
   port: 51820,
-  ip: "10.0.0.1"
+  ip: "10.0.0.1",
 })
 
 // Start the server
@@ -217,7 +227,7 @@ const clientKeys = await generateKeys()
 
 // Add client to server config
 const result = await addPeer("/etc/wireguard/wg0.conf", {
-  publicKey: clientKeys.publicKey
+  publicKey: clientKeys.publicKey,
 })
 
 console.log(`Client IP: ${result.ip}`)
@@ -264,7 +274,7 @@ The library throws errors for common issues:
 try {
   await addPeer("/nonexistent/config.conf", { publicKey: "..." })
 } catch (error) {
-  if (error.code === 'ENOENT') {
+  if (error.code === "ENOENT") {
     console.error("Configuration file not found")
   } else {
     console.error("Unexpected error:", error.message)

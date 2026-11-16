@@ -1,469 +1,294 @@
 # API Reference
 
-Complete reference for all functions available in `@kriper0nind/wg-utils`.
+All functions and types are exported from `@kriper0nind/wg-utils`.
 
-## Configuration Management
+## Types
 
-### `parse(configText: string)`
-
-Parses a WireGuard configuration file into a JavaScript object.
-
-**Parameters:**
-- `configText` (`string`): Raw configuration file content
-
-**Returns:** `object` - Configuration object with `Interface` and `Peers` properties
-
-**Example:**
 ```ts
-import { parse } from "@kriper0nind/wg-utils"
+type WireGuardScalar = string | number | boolean
+type WireGuardValue = WireGuardScalar | string[] | null | undefined
 
-const configContent = `[Interface]
+interface WireGuardInterface {
+  Address?: string | string[]
+  ListenPort?: string | number
+  PrivateKey?: string
+  DNS?: string | string[]
+  MTU?: string | number
+  Table?: string
+  PostUp?: string
+  PostDown?: string
+  [key: string]: WireGuardValue
+}
+
+interface WireGuardPeer {
+  PublicKey?: string
+  PresharedKey?: string
+  AllowedIPs?: string | string[]
+  Endpoint?: string
+  PersistentKeepalive?: string | number
+  AllowedApps?: string
+  [key: string]: WireGuardValue
+}
+
+interface WireGuardConfig {
+  Interface?: WireGuardInterface
+  Peers?: WireGuardPeer[]
+  [section: string]: WireGuardSection | WireGuardPeer[] | undefined
+}
+```
+
+## Configuration
+
+### `parse(text)`
+
+Parses WireGuard text into a typed configuration object. Comments and blank lines are ignored. Repeated keys are merged with commas. Invalid lines throw `ConfigParseError`.
+
+```ts
+const config = parse(`
+[Interface]
 PrivateKey = server-private-key
 Address = 10.0.0.1/24
-
-[Peer]
-PublicKey = client-public-key
-AllowedIPs = 10.0.0.2/32`
-
-const config = parse(configContent)
-console.log(config.Interface.Address) // "10.0.0.1/24"
+`)
 ```
 
-### `stringify(config: object)`
+### `stringify(config)`
 
-Converts a configuration object back into WireGuard configuration format.
+Serializes a configuration. Undefined, null, and empty values are omitted. Arrays become comma-separated values.
 
-**Parameters:**
-- `config` (`object`): Configuration object with `Interface` and `Peers` properties
-
-**Returns:** `string` - WireGuard configuration file content
-
-**Example:**
 ```ts
-import { stringify } from "@kriper0nind/wg-utils"
-
-const config = {
+const text = stringify({
   Interface: {
     PrivateKey: "server-private-key",
-    Address: "10.0.0.1/24"
+    Address: ["10.0.0.1/24", "fd00::1/64"],
   },
-  Peers: []
-}
-
-const configText = stringify(config)
-```
-
-## Key Management
-
-### `generateKeys(options?: object)`
-
-Generates a new WireGuard key pair.
-
-**Parameters:**
-- `options` (`object`, optional): Configuration options
-  - `privateKeyPath` (`string`, optional): Path to save private key
-  - `publicKeyPath` (`string`, optional): Path to save public key
-
-**Returns:** `Promise<{publicKey: string, privateKey: string}>`
-
-**Example:**
-```ts
-import { generateKeys } from "@kriper0nind/wg-utils"
-
-const keys = await generateKeys()
-console.log(keys.publicKey)  // Generated public key
-console.log(keys.privateKey) // Generated private key
-```
-
-### `generatePresharedKey(options?: object)`
-
-Generates a WireGuard preshared key for hardening peer tunnels.
-
-**Parameters:**
-- `options` (`object`, optional):
-  - `keyPath` (`string`, optional): Path to write the generated preshared key (default: `/etc/wireguard/presharedkey`)
-
-**Returns:** `Promise<{presharedkey: string}>`
-
-**Example:**
-```ts
-import { generatePresharedKey, addPeer } from "@kriper0nind/wg-utils"
-
-const { presharedkey } = await generatePresharedKey()
-
-await addPeer("/etc/wireguard/wg0.conf", {
-  publicKey: "client-public-key",
-  presharedKey: presharedkey
 })
 ```
 
-### `getPubKey(filepath: string)`
+### `readConfig(filepath)` / `writeConfig(filepath, config, options?)`
 
-Extracts the public key from a configuration file's private key.
+Read and write typed config files. Writes are atomic and use mode `0600`.
 
-**Parameters:**
-- `filepath` (`string`): Path to the WireGuard configuration file
-
-**Returns:** `Promise<{publicKey: string}>`
-
-**Example:**
 ```ts
-import { getPubKey } from "@kriper0nind/wg-utils"
-
-const result = await getPubKey("/etc/wireguard/wg0.conf")
-console.log(result.publicKey)
+const config = await readConfig("/etc/wireguard/wg0.conf")
+config.Interface!.ListenPort = 51821
+await writeConfig("/etc/wireguard/wg0.conf", config, { backup: true })
 ```
 
-## Configuration Creation
+Write options:
 
-### `initConf(filepath: string, options: object)`
+- `createDirectory?: boolean`
+- `backup?: boolean`
+- `mode?: number`
 
-Creates an initial WireGuard server configuration.
+### `validateWireGuardConfig(config)`
 
-**Parameters:**
-- `filepath` (`string`): Path where to save the configuration file
-- `options` (`object`): Configuration options
-  - `privateKey` (`string`): Server's private key
-  - `port` (`number`, optional): Listening port (default: 51820)
-  - `ip` (`string`, optional): Server IP address (default: "10.0.0.1")
-  - `interface` (`string`, optional): Network interface for NAT (default: "eth0")
-  - `dns` (`string`, optional): DNS server pushed to clients
-  - `postUp` (`string[]`, optional): Custom commands executed after the interface starts (replaces defaults)
-  - `postDown` (`string[]`, optional): Custom commands executed when the interface stops
-  - `mtu` (`string`, optional): Interface MTU value
-  - `table` (`"auto" | "off" | string`, optional): Routing table behavior
+Validates addresses, ports, peer keys, duplicate peers, `AllowedIPs`, endpoints, and keepalive values.
 
-**Returns:** `Promise<void>`
+## Peer API
 
-**Example:**
+### `addPeer(filepath, options)`
+
+Adds a peer, allocates an address from the interface subnet, writes atomically, and optionally syncs the running interface.
+
 ```ts
-import { initConf, generateKeys } from "@kriper0nind/wg-utils"
-
-const keys = await generateKeys()
-await initConf("/etc/wireguard/wg0.conf", {
-  privateKey: keys.privateKey,
-  port: 51820,
-  ip: "10.0.0.1",
-  interface: "eth0"
-})
-```
-
-## Peer Management
-
-### `addPeer(filepath: string, options: object)`
-
-Adds a new peer to a WireGuard configuration with automatic IP assignment.
-
-**Parameters:**
-- `filepath` (`string`): Path to the WireGuard configuration file
-- `options` (`object`): Peer configuration
-  - `publicKey` (`string`): Peer's public key
-  - `persistentKeepalive` (`number`, optional): NAT keepalive interval (seconds)
-  - `presharedKey` (`string`, optional): Preshared key from `generatePresharedKey`
-  - `allowedIPs` (`string`, optional): Custom AllowedIPs string (defaults to next `/32`)
-  - `endpoint` (`string`, optional): Peer endpoint (`host:port`)
-  - `allowedApps` (`string`, optional): Pass-through metadata stored as `AllowedApps`
-
-**Returns:** `Promise<{ip: string}>` - Assigned IP address
-
-**Example:**
-```ts
-import { addPeer, generateKeys } from "@kriper0nind/wg-utils"
-
-const clientKeys = await generateKeys()
 const result = await addPeer("/etc/wireguard/wg0.conf", {
-  publicKey: clientKeys.publicKey
-})
-console.log(`Client IP: ${result.ip}`) // "10.0.0.2"
-```
-
-### `deletePeer(filepath: string, where: object)`
-
-Removes a peer from a WireGuard configuration.
-
-**Parameters:**
-- `filepath` (`string`): Path to the WireGuard configuration file
-- `where` (`object`): Identification criteria
-  - `publicKey` (`string`): Public key of the peer to remove
-
-**Returns:** `Promise<void>`
-
-**Example:**
-```ts
-import { deletePeer } from "@kriper0nind/wg-utils"
-
-await deletePeer("/etc/wireguard/wg0.conf", {
-  publicKey: "client-public-key-to-remove"
+  publicKey: "peer-public-key",
+  persistentKeepalive: 25,
+  sync: "auto",
 })
 ```
 
-## Interface Control
+Options include:
 
-### `up(iface: string)`
+- `publicKey`
+- `allowedIPs`
+- `presharedKey`
+- `persistentKeepalive`
+- `endpoint`
+- `allowedApps`
+- `family: "ipv4" | "ipv6"`
+- `addressPool`
+- `iface`
+- `sync: boolean | "auto"`
 
-Starts a WireGuard interface.
+Returns `{ ip, address, family, peer }`.
 
-**Parameters:**
-- `iface` (`string`): Interface name (e.g., "wg0")
+### `deletePeer(filepath, { publicKey }, options?)`
 
-**Returns:** `Promise<void>`
+Removes an active or disabled peer. Returns `true` when removed and `false` when it did not exist.
 
-**Example:**
+### `getPeer(filepath, publicKey)`
+
+Returns a peer or `undefined`.
+
+### `listPeers(filepath)` / `listDisabledPeers(filepath)`
+
+Lists active or disabled peers.
+
+### `updatePeer(filepath, publicKey, changes, options?)`
+
+Updates selected peer fields while preserving the rest of the config text.
+
 ```ts
-import { up } from "@kriper0nind/wg-utils"
-
-await up("wg0")
-console.log("WireGuard interface started")
-```
-
-### `down(iface: string)`
-
-Stops a WireGuard interface.
-
-**Parameters:**
-- `iface` (`string`): Interface name (e.g., "wg0")
-
-**Returns:** `Promise<void>`
-
-**Example:**
-```ts
-import { down } from "@kriper0nind/wg-utils"
-
-await down("wg0")
-console.log("WireGuard interface stopped")
-```
-
-### `syncConf(iface: string)`
-
-Synchronizes a WireGuard interface configuration without restarting the interface.
-
-This function applies configuration changes to a running WireGuard interface by using the `wg syncconf` command. It reads the current configuration from the interface, strips any wg-quick specific directives, and applies the changes without disrupting existing connections.
-
-**Parameters:**
-- `iface` (`string`): Interface name (e.g., "wg0")
-
-**Returns:** `Promise<void>`
-
-**Example:**
-```ts
-import { syncConf } from "@kriper0nind/wg-utils"
-
-// After modifying the configuration file, sync the changes
-await syncConf("wg0")
-console.log("Configuration synchronized")
-```
-
-**Note:** This function requires the WireGuard interface to be already running. It's particularly useful when you need to apply configuration changes without interrupting active VPN connections.
-
-### `getLatestHandshake(iface: string)`
-
-Retrieves the latest handshake information for all peers on a WireGuard interface.
-
-This function provides detailed connection information including handshake timestamps, transfer statistics, and peer endpoints. It's useful for monitoring VPN connections, debugging connectivity issues, and tracking peer activity.
-
-**Parameters:**
-- `iface` (`string`): Interface name (e.g., "wg0")
-
-**Returns:** `Promise<HandshakeInfo[]>` - Array of handshake information for each peer
-
-**Example:**
-```ts
-import { getLatestHandshake } from "@kriper0nind/wg-utils"
-
-const handshakes = await getLatestHandshake("wg0")
-console.log("Active peers:", handshakes.length)
-
-handshakes.forEach(peer => {
-  console.log(`Peer ${peer.publicKey}:`)
-  console.log(`  Latest handshake: ${peer.latestHandshake}`)
-  console.log(`  Transfer: ${peer.transfer}`)
-  console.log(`  Endpoint: ${peer.endpoint}`)
+await updatePeer("/etc/wireguard/wg0.conf", "peer-public-key", {
+  PersistentKeepalive: 25,
 })
 ```
 
-**HandshakeInfo Interface:**
-```ts
-interface HandshakeInfo {
-  publicKey: string
-  handshake?: string
-  endpoint?: string
-  allowedIps?: string
-  latestHandshake?: string
-  transfer?: string
-}
-```
+### `setPeerEnabled(filepath, publicKey, enabled, options?)`
 
-## Installation & Setup
+Disables a peer by commenting its complete block with a recognizable prefix and re-enables it losslessly.
 
-### `checkWg()`
+### `removePeer(filepath, publicKey, options?)`
 
-Checks if WireGuard tools are installed and available.
+Low-level idempotent peer removal backing `deletePeer`.
 
-**Returns:** `Promise<boolean>` - `true` if WireGuard is available, `false` otherwise
+## IP Utilities
 
-**Example:**
-```ts
-import { checkWg } from "@kriper0nind/wg-utils"
+### `getNextPeerAddress(config, options?)`
 
-const isInstalled = await checkWg()
-if (isInstalled) {
-  console.log("WireGuard is ready")
-} else {
-  console.log("WireGuard not installed")
-}
-```
-
-### `requireWg()`
-
-Checks if WireGuard tools are installed and throws an error if not.
-
-**Returns:** `Promise<void>`
-
-**Throws:** Error with installation instructions if WireGuard is not found
-
-**Example:**
-```ts
-import { requireWg } from "@kriper0nind/wg-utils"
-
-try {
-  await requireWg()
-  console.log("WireGuard is ready")
-} catch (error) {
-  console.error(error.message)
-}
-```
-
-### `installWg(options?: object)`
-
-Installs WireGuard tools on the current platform with automatic detection.
-
-**Parameters:**
-- `options` (`object`, optional): Installation options
-  - `force` (`boolean`, optional): Force installation even if already installed (default: `false`)
-  - `silent` (`boolean`, optional): Suppress package manager output (default: `false`)
-
-**Returns:** `Promise<void>`
-
-**Example:**
-```ts
-import { installWg } from "@kriper0nind/wg-utils"
-
-// Basic installation
-await installWg()
-
-// Silent installation
-await installWg({ silent: true })
-
-// Force reinstall
-await installWg({ force: true })
-```
-
-### `getInstallInstructions()`
-
-Gets platform-specific installation instructions without installing.
-
-**Returns:** `Promise<object>` - Platform info and installation command
-
-**Example:**
-```ts
-import { getInstallInstructions } from "@kriper0nind/wg-utils"
-
-const instructions = await getInstallInstructions()
-if (instructions.supported) {
-  console.log(`Run: ${instructions.command}`)
-} else {
-  console.log("Manual installation required")
-}
-```
-
-## Error Handling
-
-All functions may throw errors in the following scenarios:
-
-- **File operations**: `ENOENT` for missing files, `EACCES` for permission denied
-- **WireGuard operations**: Invalid keys, interface already exists, etc.
-- **Configuration parsing**: Malformed configuration files
-- **System operations**: Missing WireGuard tools, insufficient privileges
-
-**Example error handling:**
-```ts
-try {
-  await addPeer("/etc/wireguard/wg0.conf", {
-    publicKey: "invalid-key"
-  })
-} catch (error) {
-  if (error.code === 'ENOENT') {
-    console.error("Configuration file not found")
-  } else if (error.message.includes('Invalid key')) {
-    console.error("Invalid public key format")
-  } else {
-    console.error("Unexpected error:", error.message)
-  }
-}
-```
-
-## Type Definitions
+Allocates the first free IPv4 `/32` or IPv6 `/128` peer address from `Interface.Address`.
 
 ```ts
-interface KeyPair {
-  publicKey: string
-  privateKey: string
-}
-
-interface InitConfOptions {
-  privateKey: string
-  port?: number
-  ip?: string
-  interface?: string
-  dns?: string
-  postUp?: string[]
-  postDown?: string[]
-  mtu?: string
-  table?: string | "auto" | "off"
-}
-
-interface AddPeerOptions {
-  publicKey: string
-  persistentKeepalive?: number
-  presharedKey?: string
-  allowedIPs?: string
-  endpoint?: string
-  allowedApps?: string
-}
-
-interface DeletePeerOptions {
-  publicKey: string
-}
-
-interface GetPubKeyResult {
-  publicKey: string
-}
-
-interface AddPeerResult {
-  ip: string
-}
-
-interface GeneratePresharedKeyResult {
-  presharedkey: string
-}
-
-interface InstallWgOptions {
-  force?: boolean
-  silent?: boolean
-}
-
-interface InstallInstructions {
-  platform: string
-  packageManager?: string
-  command?: string
-  name?: string
-  supported: boolean
-}
+const allocation = getNextPeerAddress(config, { family: "ipv6" })
 ```
 
-## Requirements
+Options:
 
-- **Node.js** 16 or higher
-- **WireGuard** installed on the system
-- **Root/sudo privileges** for interface management
-- **iptables** installed for NAT functionality
+- `family?: "ipv4" | "ipv6"`
+- `addressPool?: string`
+
+### Other exports
+
+- `parseIpv4`, `formatIpv4`
+- `parseIpv6`, `formatIpv6`
+- `parseCidr`, `formatAddress`
+- `isValidIp`, `isValidCidr`
+
+## Key API
+
+### `generateKeys(options?)`
+
+Generates a key pair in memory. Optional paths write keys with mode `0600`.
+
+```ts
+const { privateKey, publicKey } = await generateKeys()
+```
+
+### `generatePresharedKey(options?)`
+
+Generates a preshared key in memory and optionally writes it to `keyPath`.
+
+### `getPubKey(filepath)`
+
+Reads `Interface.PrivateKey` and derives the public key.
+
+### `getPublicKey(privateKey)`
+
+Derives a public key directly from a private key string.
+
+### `isWireGuardKey(value)` / `assertWireGuardKey(value, label?)`
+
+Validates the 32-byte base64 WireGuard key format.
+
+## Server Configuration
+
+### `initConf(filepath, options)`
+
+Creates an initial server config. Optional values are omitted rather than serialized as `undefined`.
+
+```ts
+await initConf("/etc/wireguard/wg0.conf", {
+  privateKey: serverPrivateKey,
+  ip: "10.0.0.1",
+  dns: ["1.1.1.1", "8.8.8.8"],
+  port: 51820,
+})
+```
+
+Options include `port`, `ip`/`address`, `interface`, `dns`, `postUp`, `postDown`, `mtu`, `table`, and `peers`.
+
+## Client API
+
+### `generateClientConfig(options)`
+
+Creates a standalone client configuration.
+
+```ts
+const text = generateClientConfig({
+  privateKey: clientPrivateKey,
+  clientAddress: "10.0.0.2/32",
+  serverPublicKey: serverPublicKey,
+  serverEndpoint: "vpn.example.com:51820",
+  allowedIPs: ["0.0.0.0/0", "::/0"],
+  dns: "1.1.1.1",
+  persistentKeepalive: 25,
+})
+```
+
+### `generateClientQRCode(config, options?)`
+
+Accepts config text, a `WireGuardConfig`, or `GenerateClientConfigOptions`.
+
+- Default result: PNG data URL
+- `type: "terminal"`: ANSI terminal QR code
+- `outputPath`: writes a PNG file
+
+## Interface API
+
+### `up(iface, options?)` / `down(iface)`
+
+Start or stop an interface without invoking a shell. Windows uses the WireGuard tunnel service.
+
+### `restart(iface, options?)`
+
+Stops and starts an interface.
+
+### `isWgUp(iface)`
+
+Returns whether `wg show <iface>` succeeds.
+
+### `getInterfaceStatus(iface)`
+
+Parses stable `wg show <iface> dump` output into interface and peer statistics.
+
+### `getLatestHandshake(iface)`
+
+Returns peer handshake timestamps, endpoints, transfer counters, formatted transfer text, and keepalive values.
+
+### `syncConf(iface)`
+
+Applies `wg-quick strip <iface>` through a secure temporary file and `wg syncconf`.
+
+### `saveConfig(iface, options?)`
+
+Saves the running interface configuration or returns/writes `wg showconf` output.
+
+## Installation and Checks
+
+### `checkWg()` / `requireWg()`
+
+Check for the `wg` executable or throw a descriptive error.
+
+### `installWg(options?)` / `getInstallInstructions()`
+
+Detect the platform/package manager and install WireGuard using argument-array commands without shell interpolation.
+
+## Errors
+
+All errors extend `WireGuardError`:
+
+- `ConfigParseError`
+- `ConfigValidationError`
+- `WgNotFoundError`
+- `CommandError`
+- `PeerNotFoundError`
+- `PeerAlreadyExistsError`
+- `AddressPoolExhaustedError`
+- `UnsupportedPlatformError`
+
+## Environment Variables
+
+- `WG_UTILS_WG_PATH`
+- `WG_UTILS_WG_QUICK_PATH`
+- `WG_UTILS_WIREGUARD_PATH`

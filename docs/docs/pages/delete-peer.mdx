@@ -31,7 +31,7 @@ import { deletePeer } from "@kriper0nind/wg-utils"
 
 // Remove a peer by public key
 await deletePeer("/etc/wireguard/wg0.conf", {
-  publicKey: "client-public-key-to-remove"
+  publicKey: "client-public-key-to-remove",
 })
 
 console.log("Peer removed successfully")
@@ -50,17 +50,16 @@ async function safeDeletePeer(configPath: string, publicKey: string) {
     // First, verify the peer exists
     const configContent = await readFile(configPath, "utf-8")
     const config = parse(configContent)
-    
-    const peerExists = config.Peers?.some(peer => peer.PublicKey === publicKey)
-    
+
+    const peerExists = config.Peers?.some((peer) => peer.PublicKey === publicKey)
+
     if (!peerExists) {
       throw new Error("Peer not found in configuration")
     }
-    
+
     // Remove the peer
     await deletePeer(configPath, { publicKey })
     console.log("Peer removed successfully")
-    
   } catch (error) {
     console.error("Failed to remove peer:", error.message)
     throw error
@@ -73,7 +72,7 @@ async function safeDeletePeer(configPath: string, publicKey: string) {
 ```ts
 async function removeMultiplePeers(configPath: string, publicKeys: string[]) {
   const results = []
-  
+
   for (const publicKey of publicKeys) {
     try {
       await deletePeer(configPath, { publicKey })
@@ -82,16 +81,12 @@ async function removeMultiplePeers(configPath: string, publicKeys: string[]) {
       results.push({ publicKey, status: "failed", error: error.message })
     }
   }
-  
+
   return results
 }
 
 // Remove multiple peers
-const publicKeys = [
-  "client1-public-key",
-  "client2-public-key",
-  "client3-public-key"
-]
+const publicKeys = ["client1-public-key", "client2-public-key", "client3-public-key"]
 
 const results = await removeMultiplePeers("/etc/wireguard/wg0.conf", publicKeys)
 console.log("Removal results:", results)
@@ -108,16 +103,15 @@ async function managePeers(configPath: string, action: string, publicKey: string
   const originalConfig = await readFile(configPath, "utf-8")
   const backupPath = `${configPath}.backup.${Date.now()}`
   await writeFile(backupPath, originalConfig)
-  
+
   try {
     if (action === "remove") {
       await deletePeer(configPath, { publicKey })
       console.log(`Peer ${publicKey} removed successfully`)
     }
-    
+
     // Log the change
     console.log(`Configuration updated, backup saved to ${backupPath}`)
-    
   } catch (error) {
     // Restore from backup on failure
     await writeFile(configPath, originalConfig)
@@ -139,12 +133,12 @@ The function may throw errors in the following scenarios:
 ```ts
 try {
   await deletePeer("/etc/wireguard/wg0.conf", {
-    publicKey: "non-existent-key"
+    publicKey: "non-existent-key",
   })
 } catch (error) {
-  if (error.code === 'ENOENT') {
+  if (error.code === "ENOENT") {
     console.error("Configuration file not found")
-  } else if (error.code === 'EACCES') {
+  } else if (error.code === "EACCES") {
     console.error("Permission denied - run with sudo")
   } else {
     console.error("Failed to remove peer:", error.message)
@@ -155,38 +149,33 @@ try {
 ## Complete Peer Management
 
 ```ts
-import { 
-  deletePeer, 
-  addPeer, 
-  parse, 
-  generateKeys 
-} from "@kriper0nind/wg-utils"
+import { deletePeer, addPeer, parse, generateKeys } from "@kriper0nind/wg-utils"
 import { readFile } from "fs/promises"
 
 class PeerManager {
   constructor(private configPath: string) {}
-  
+
   async listPeers() {
     const configContent = await readFile(this.configPath, "utf-8")
     const config = parse(configContent)
     return config.Peers || []
   }
-  
+
   async addPeer() {
     const keys = await generateKeys()
     const result = await addPeer(this.configPath, {
-      publicKey: keys.publicKey
+      publicKey: keys.publicKey,
     })
     return { ...keys, ip: result.ip }
   }
-  
+
   async removePeer(publicKey: string) {
     await deletePeer(this.configPath, { publicKey })
   }
-  
+
   async findPeer(publicKey: string) {
     const peers = await this.listPeers()
-    return peers.find(peer => peer.PublicKey === publicKey)
+    return peers.find((peer) => peer.PublicKey === publicKey)
   }
 }
 
@@ -209,6 +198,7 @@ console.log("Peer removed")
 ## Configuration Before and After
 
 ### Before Removal
+
 ```ini
 [Interface]
 PrivateKey = server-private-key
@@ -224,6 +214,7 @@ AllowedIPs = 10.0.0.3/32
 ```
 
 ### After Removing client1
+
 ```ini
 [Interface]
 PrivateKey = server-private-key
@@ -245,7 +236,7 @@ async function safeRemovePeer(configPath: string, publicKey: string) {
   // Create backup
   const backupPath = `${configPath}.backup.${Date.now()}`
   await copyFile(configPath, backupPath)
-  
+
   try {
     await deletePeer(configPath, { publicKey })
     console.log("Peer removed, backup created:", backupPath)
@@ -262,19 +253,19 @@ async function safeRemovePeer(configPath: string, publicKey: string) {
 async function validateAndRemove(configPath: string, publicKey: string) {
   const configContent = await readFile(configPath, "utf-8")
   const config = parse(configContent)
-  
+
   // Check if peer exists
-  const peerIndex = config.Peers?.findIndex(peer => peer.PublicKey === publicKey)
-  
+  const peerIndex = config.Peers?.findIndex((peer) => peer.PublicKey === publicKey)
+
   if (peerIndex === -1 || !config.Peers) {
     throw new Error("Peer not found")
   }
-  
+
   // Check if this is the last peer
   if (config.Peers.length === 1) {
     console.warn("Warning: This is the last peer in the configuration")
   }
-  
+
   // Proceed with removal
   await deletePeer(configPath, { publicKey })
 }
@@ -287,7 +278,7 @@ async function validateAndRemove(configPath: string, publicKey: string) {
 ```ts
 async function removeInactivePeers(configPath: string, inactiveKeys: string[]) {
   const results = []
-  
+
   for (const publicKey of inactiveKeys) {
     try {
       await deletePeer(configPath, { publicKey })
@@ -296,15 +287,12 @@ async function removeInactivePeers(configPath: string, inactiveKeys: string[]) {
       results.push({ publicKey, status: "error", message: error.message })
     }
   }
-  
+
   return results
 }
 
 // Remove multiple inactive clients
-const inactiveClients = [
-  "old-client-1-key",
-  "old-client-2-key"
-]
+const inactiveClients = ["old-client-1-key", "old-client-2-key"]
 
 const results = await removeInactivePeers("/etc/wireguard/wg0.conf", inactiveClients)
 console.log("Cleanup results:", results)
@@ -316,21 +304,21 @@ console.log("Cleanup results:", results)
 async function rotatePeer(oldPublicKey: string) {
   // Generate new keys
   const newKeys = await generateKeys()
-  
+
   // Add new peer
   const result = await addPeer("/etc/wireguard/wg0.conf", {
-    publicKey: newKeys.publicKey
+    publicKey: newKeys.publicKey,
   })
-  
+
   // Remove old peer
   await deletePeer("/etc/wireguard/wg0.conf", {
-    publicKey: oldPublicKey
+    publicKey: oldPublicKey,
   })
-  
+
   return {
     newPrivateKey: newKeys.privateKey,
     newPublicKey: newKeys.publicKey,
-    ip: result.ip
+    ip: result.ip,
   }
 }
 ```

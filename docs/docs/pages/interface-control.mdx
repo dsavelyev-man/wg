@@ -13,6 +13,7 @@ The interface control functions allow you to programmatically start and stop Wir
 Starts a WireGuard interface using `wg-quick up`.
 
 **Parameters:**
+
 - `iface` (`string`): Interface name (e.g., "wg0", "wg1")
 
 **Returns:** `Promise<void>`
@@ -22,6 +23,7 @@ Starts a WireGuard interface using `wg-quick up`.
 Stops a WireGuard interface using `wg-quick down`.
 
 **Parameters:**
+
 - `iface` (`string`): Interface name (e.g., "wg0", "wg1")
 
 **Returns:** `Promise<void>`
@@ -94,12 +96,12 @@ async function isInterfaceUp(iface: string): Promise<boolean> {
 
 async function safeUp(iface: string) {
   const isUp = await isInterfaceUp(iface)
-  
+
   if (isUp) {
     console.log(`${iface} is already running`)
     return
   }
-  
+
   await up(iface)
   console.log(`${iface} started`)
 }
@@ -110,7 +112,7 @@ async function safeUp(iface: string) {
 ```ts
 class InterfaceManager {
   private interfaces: string[] = []
-  
+
   async startInterface(iface: string) {
     try {
       await up(iface)
@@ -121,24 +123,24 @@ class InterfaceManager {
       throw error
     }
   }
-  
+
   async stopInterface(iface: string) {
     try {
       await down(iface)
-      this.interfaces = this.interfaces.filter(i => i !== iface)
+      this.interfaces = this.interfaces.filter((i) => i !== iface)
       console.log(`${iface} stopped`)
     } catch (error) {
       console.error(`Failed to stop ${iface}:`, error.message)
       throw error
     }
   }
-  
+
   async stopAll() {
     for (const iface of [...this.interfaces]) {
       await this.stopInterface(iface)
     }
   }
-  
+
   getActiveInterfaces() {
     return [...this.interfaces]
   }
@@ -164,14 +166,13 @@ async function restartInterface(iface: string) {
     // Stop the interface
     await down(iface)
     console.log(`${iface} stopped`)
-    
+
     // Wait a moment
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
     // Start the interface
     await up(iface)
     console.log(`${iface} restarted`)
-    
   } catch (error) {
     console.error(`Failed to restart ${iface}:`, error.message)
     throw error
@@ -194,13 +195,13 @@ async function safeInterfaceControl(iface: string, action: "up" | "down") {
       await down(iface)
     }
   } catch (error) {
-    if (error.message.includes('Permission denied')) {
+    if (error.message.includes("Permission denied")) {
       console.error("Permission denied - run with sudo")
-    } else if (error.message.includes('No such device')) {
+    } else if (error.message.includes("No such device")) {
       console.error(`Interface ${iface} does not exist`)
-    } else if (error.message.includes('already exists')) {
+    } else if (error.message.includes("already exists")) {
       console.error(`Interface ${iface} is already running`)
-    } else if (error.message.includes('not found')) {
+    } else if (error.message.includes("not found")) {
       console.error(`Configuration file for ${iface} not found`)
     } else {
       console.error(`Interface control failed:`, error.message)
@@ -221,13 +222,13 @@ async function upWithRetry(iface: string, maxRetries: number = 3) {
       return
     } catch (error) {
       console.warn(`Attempt ${attempt} failed:`, error.message)
-      
+
       if (attempt === maxRetries) {
         throw new Error(`Failed to start ${iface} after ${maxRetries} attempts`)
       }
-      
+
       // Wait before retry
-      await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
     }
   }
 }
@@ -236,61 +237,55 @@ async function upWithRetry(iface: string, maxRetries: number = 3) {
 ## Complete VPN Management
 
 ```ts
-import { 
-  up, 
-  down, 
-  initConf, 
-  addPeer, 
-  generateKeys 
-} from "@kriper0nind/wg-utils"
+import { up, down, initConf, addPeer, generateKeys } from "@kriper0nind/wg-utils"
 
 class VPNManager {
   constructor(private iface: string = "wg0") {}
-  
+
   async setup() {
     // Generate server keys
     const serverKeys = await generateKeys()
-    
+
     // Create server configuration
     await initConf(`/etc/wireguard/${this.iface}.conf`, {
       privateKey: serverKeys.privateKey,
       port: 51820,
-      ip: "10.0.0.1"
+      ip: "10.0.0.1",
     })
-    
+
     console.log("VPN server configured")
     return serverKeys
   }
-  
+
   async start() {
     await up(this.iface)
     console.log(`VPN server ${this.iface} started`)
   }
-  
+
   async stop() {
     await down(this.iface)
     console.log(`VPN server ${this.iface} stopped`)
   }
-  
+
   async restart() {
     await this.stop()
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000))
     await this.start()
   }
-  
+
   async addClient() {
     const clientKeys = await generateKeys()
     const result = await addPeer(`/etc/wireguard/${this.iface}.conf`, {
-      publicKey: clientKeys.publicKey
+      publicKey: clientKeys.publicKey,
     })
-    
+
     // Restart to apply changes
     await this.restart()
-    
+
     return {
       privateKey: clientKeys.privateKey,
       publicKey: clientKeys.publicKey,
-      ip: result.ip
+      ip: result.ip,
     }
   }
 }
@@ -347,7 +342,7 @@ async function monitorInterface(iface: string, intervalMs: number = 30000) {
     try {
       const { stdout } = await execAsync(`wg show ${iface}`)
       const isUp = stdout.trim().length > 0
-      
+
       if (isUp) {
         console.log(`${iface} is healthy`)
       } else {
@@ -359,13 +354,13 @@ async function monitorInterface(iface: string, intervalMs: number = 30000) {
       console.error(`Health check failed for ${iface}:`, error.message)
     }
   }
-  
+
   // Initial check
   await checkStatus()
-  
+
   // Set up interval
   const interval = setInterval(checkStatus, intervalMs)
-  
+
   // Return cleanup function
   return () => clearInterval(interval)
 }
@@ -384,15 +379,14 @@ setTimeout(cleanup, 5 * 60 * 1000)
 ```ts
 async function devWorkflow() {
   const iface = "wg-dev"
-  
+
   try {
     // Start development VPN
     await up(iface)
     console.log("Development VPN started")
-    
+
     // Do development work...
     console.log("Working with VPN...")
-    
   } finally {
     // Always clean up
     try {
@@ -410,7 +404,7 @@ async function devWorkflow() {
 ```ts
 async function deployVPN() {
   const iface = "wg0"
-  
+
   try {
     // Stop existing interface
     await down(iface)
@@ -418,10 +412,10 @@ async function deployVPN() {
   } catch (error) {
     console.log("No existing interface to stop")
   }
-  
+
   // Apply new configuration
   // ... configuration updates ...
-  
+
   // Start with new configuration
   await up(iface)
   console.log("VPN deployed successfully")

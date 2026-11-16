@@ -27,6 +27,7 @@ generateKeys(options?: {
 ## Returns
 
 Returns a Promise that resolves to an object containing:
+
 - **`publicKey`** (`string`): The generated public key (safe to share)
 - **`privateKey`** (`string`): The generated private key (keep secret)
 
@@ -49,7 +50,7 @@ console.log("Private Key:", keys.privateKey)
 ```ts
 const keys = await generateKeys({
   privateKeyPath: "/custom/path/server.key",
-  publicKeyPath: "/custom/path/server.pub"
+  publicKeyPath: "/custom/path/server.pub",
 })
 ```
 
@@ -65,7 +66,7 @@ const serverKeys = await generateKeys()
 await initConf("/etc/wireguard/wg0.conf", {
   privateKey: serverKeys.privateKey,
   port: 51820,
-  ip: "10.0.0.1"
+  ip: "10.0.0.1",
 })
 
 console.log("Server public key:", serverKeys.publicKey)
@@ -81,7 +82,7 @@ const clientKeys = await generateKeys()
 
 // Add client to server configuration
 const result = await addPeer("/etc/wireguard/wg0.conf", {
-  publicKey: clientKeys.publicKey
+  publicKey: clientKeys.publicKey,
 })
 
 console.log("Client private key:", clientKeys.privateKey)
@@ -128,9 +129,9 @@ The function may throw errors in the following scenarios:
 try {
   const keys = await generateKeys()
 } catch (error) {
-  if (error.message.includes('wg genkey')) {
+  if (error.message.includes("wg genkey")) {
     console.error("WireGuard is not installed")
-  } else if (error.code === 'EACCES') {
+  } else if (error.code === "EACCES") {
     console.error("Permission denied - run with sudo")
   } else {
     console.error("Key generation failed:", error.message)
@@ -164,7 +165,7 @@ async function setupVPN() {
     await initConf("/etc/wireguard/wg0.conf", {
       privateKey: serverKeys.privateKey,
       port: 51820,
-      ip: "10.0.0.1"
+      ip: "10.0.0.1",
     })
     console.log("Server configuration created")
 
@@ -174,7 +175,7 @@ async function setupVPN() {
 
     // 4. Add client to server
     const result = await addPeer("/etc/wireguard/wg0.conf", {
-      publicKey: clientKeys.publicKey
+      publicKey: clientKeys.publicKey,
     })
     console.log(`Client added with IP: ${result.ip}`)
 
@@ -186,9 +187,8 @@ async function setupVPN() {
     return {
       serverPublicKey: serverKeys.publicKey,
       clientPrivateKey: clientKeys.privateKey,
-      clientIP: result.ip
+      clientIP: result.ip,
     }
-
   } catch (error) {
     console.error("VPN setup failed:", error.message)
     throw error
@@ -201,16 +201,16 @@ async function setupVPN() {
 ```ts
 async function generateMultipleKeys(count: number) {
   const keyPairs = []
-  
+
   for (let i = 0; i < count; i++) {
     const keys = await generateKeys()
     keyPairs.push({
       id: i + 1,
       publicKey: keys.publicKey,
-      privateKey: keys.privateKey
+      privateKey: keys.privateKey,
     })
   }
-  
+
   return keyPairs
 }
 

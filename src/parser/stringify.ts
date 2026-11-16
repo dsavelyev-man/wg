@@ -1,54 +1,61 @@
+import { ConfigValidationError } from "../errors"
+import { WireGuardConfig, WireGuardSection, WireGuardValue } from "../types"
+
+const formatValue = (value: WireGuardValue): string | undefined => {
+  if (value === undefined || value === null) return undefined
+  if (Array.isArray(value)) {
+    const joined = value
+      .map((item) => String(item).trim())
+      .filter(Boolean)
+      .join(", ")
+    return joined || undefined
+  }
+  const stringValue = String(value).trim()
+  return stringValue || undefined
+}
+
+const stringifySection = (name: string, section: WireGuardSection): string => {
+  const lines: string[] = [`[${name}]`]
+  for (const [key, value] of Object.entries(section)) {
+    const formatted = formatValue(value)
+    if (formatted !== undefined) lines.push(`${key} = ${formatted}`)
+  }
+  return lines.join("\n")
+}
+
 /**
- * Convert a parsed WireGuard configuration object into its textual
- * WireGuard config representation.
+ * Convert a typed WireGuard configuration object into text.
  *
- * The function supports an `Interface` object and a `Peers` array where each
- * peer is an object of key/value pairs. Keys and values are emitted in the
- * order returned by `Object.entries`.
- *
- * Expected input shape:
- * - `config.Interface?: Record<string, string | number>`
- * - `config.Peers?: Array<Record<string, string | number>>`
- *
- * @param config Parsed configuration object
- * @returns WireGuard configuration text
- *
- * @example
- * ```ts
- * const text = stringify({
- *   Interface: {
- *     PrivateKey: "<server-private-key>",
- *     Address: "10.0.0.1/24",
- *     ListenPort: 51820,
- *   },
- *   Peers: [
- *     { PublicKey: "<peer-pub>", AllowedIPs: "10.0.0.2/32" },
- *   ],
- * })
- * ```
+ * Undefined, null, and empty values are intentionally omitted. Arrays are
+ * serialized as comma-separated WireGuard list values.
  */
-export const stringify = (config: any) => {
-    let result = '';
+export const stringify = (config: WireGuardConfig): string => {
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    throw new ConfigValidationError("Configuration must be an object.")
+  }
 
-    // Handle Interface section
-    if (config.Interface) {
-        result += '[Interface]\n';
-        for (const [key, value] of Object.entries(config.Interface)) {
-        result += `${key} = ${value}\n`;
-        }
-        result += '\n';
+  const sections: string[] = []
+  if (config.Interface) {
+    sections.push(stringifySection("Interface", config.Interface))
+  }
+
+  if (config.Peers !== undefined) {
+    if (!Array.isArray(config.Peers)) {
+      throw new ConfigValidationError("config.Peers must be an array.")
     }
-
-    // Handle Peers array
-    if (Array.isArray(config.Peers)) {
-        for (const peer of config.Peers) {
-        result += '[Peer]\n';
-        for (const [key, value] of Object.entries(peer)) {
-            result += `${key} = ${value}\n`;
-        }
-        result += '\n';
-        }
+    for (const peer of config.Peers) {
+      sections.push(stringifySection("Peer", peer))
     }
+  }
 
-    return result.trim();
+  for (const [name, section] of Object.entries(config)) {
+    if (name === "Interface" || name === "Peers" || section === undefined) continue
+    if (Array.isArray(section)) {
+      for (const item of section) sections.push(stringifySection(name, item))
+    } else if (typeof section === "object" && section !== null) {
+      sections.push(stringifySection(name, section))
+    }
+  }
+
+  return sections.length > 0 ? `${sections.join("\n\n")}\n` : ""
 }

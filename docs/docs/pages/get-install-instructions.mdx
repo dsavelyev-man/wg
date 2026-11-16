@@ -42,7 +42,7 @@ import { getInstallInstructions } from "@kriper0nind/wg-utils"
 // Get installation instructions
 async function showInstallInstructions() {
   const instructions = await getInstallInstructions()
-  
+
   if (instructions.supported) {
     console.log(`Platform: ${instructions.name}`)
     console.log(`Package Manager: ${instructions.packageManager}`)
@@ -59,7 +59,7 @@ async function showInstallInstructions() {
 // Check platform support
 async function checkSupport() {
   const instructions = await getInstallInstructions()
-  
+
   if (instructions.supported) {
     console.log("✅ Automatic installation supported")
   } else {
@@ -71,6 +71,7 @@ async function checkSupport() {
 ## Platform Detection
 
 ### Linux
+
 - **Ubuntu/Debian**: Detects `apt` package manager
 - **CentOS/RHEL**: Detects `yum` package manager
 - **Fedora**: Detects `dnf` package manager
@@ -78,9 +79,11 @@ async function checkSupport() {
 - **Alpine Linux**: Detects `apk` package manager
 
 ### macOS
+
 - **Homebrew**: Detects `brew` package manager
 
 ### Windows
+
 - **Chocolatey**: Detects `choco` package manager
 - **Winget**: Detects `winget` package manager
 

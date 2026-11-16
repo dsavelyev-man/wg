@@ -49,7 +49,7 @@ const serverKeys = await generateKeys()
 
 // Create basic server configuration
 await initConf("/etc/wireguard/wg0.conf", {
-  privateKey: serverKeys.privateKey
+  privateKey: serverKeys.privateKey,
 })
 
 console.log("Server configuration created")
@@ -66,11 +66,11 @@ const serverKeys = await generateKeys()
 
 await initConf("/etc/wireguard/wg0.conf", {
   privateKey: serverKeys.privateKey,
-  port: 51821,           // Custom port
-  ip: "192.168.1.1",    // Custom IP range
-  interface: "ens3",     // Custom network interface
+  port: 51821, // Custom port
+  ip: "192.168.1.1", // Custom IP range
+  interface: "ens3", // Custom network interface
   dns: "9.9.9.9",
-  mtu: "1380"
+  mtu: "1380",
 })
 ```
 
@@ -79,9 +79,9 @@ await initConf("/etc/wireguard/wg0.conf", {
 ```ts
 await initConf("/etc/wireguard/wg1.conf", {
   privateKey: serverKeys.privateKey,
-  table: "off",           // Disable automatic routes (WG >= 0.4)
+  table: "off", // Disable automatic routes (WG >= 0.4)
   dns: "1.1.1.1",
-  ip: "10.50.0.1"
+  ip: "10.50.0.1",
 })
 ```
 
@@ -90,14 +90,8 @@ await initConf("/etc/wireguard/wg1.conf", {
 ```ts
 await initConf("/etc/wireguard/wg0.conf", {
   privateKey: serverKeys.privateKey,
-  postUp: [
-    "iptables -A INPUT -i %i -j ACCEPT",
-    "iptables -A FORWARD -i %i -j ACCEPT"
-  ],
-  postDown: [
-    "iptables -D INPUT -i %i -j ACCEPT",
-    "iptables -D FORWARD -i %i -j ACCEPT"
-  ]
+  postUp: ["iptables -A INPUT -i %i -j ACCEPT", "iptables -A FORWARD -i %i -j ACCEPT"],
+  postDown: ["iptables -D INPUT -i %i -j ACCEPT", "iptables -D FORWARD -i %i -j ACCEPT"],
 })
 ```
 
@@ -108,7 +102,7 @@ await initConf("/etc/wireguard/wg0.conf", {
 const configs = [
   { name: "wg0", port: 51820, ip: "10.0.0.1" },
   { name: "wg1", port: 51821, ip: "10.1.0.1" },
-  { name: "wg2", port: 51822, ip: "10.2.0.1" }
+  { name: "wg2", port: 51822, ip: "10.2.0.1" },
 ]
 
 for (const config of configs) {
@@ -116,7 +110,7 @@ for (const config of configs) {
   await initConf(`/etc/wireguard/${config.name}.conf`, {
     privateKey: keys.privateKey,
     port: config.port,
-    ip: config.ip
+    ip: config.ip,
   })
   console.log(`Created ${config.name} configuration`)
 }
@@ -167,13 +161,13 @@ If you supply `postUp`/`postDown`, those arrays fully replace the defaults so yo
 // For servers with different network interfaces
 await initConf("/etc/wireguard/wg0.conf", {
   privateKey: serverKeys.privateKey,
-  interface: "enp0s3"  // VirtualBox/VMware interface
+  interface: "enp0s3", // VirtualBox/VMware interface
 })
 
 // For cloud providers
 await initConf("/etc/wireguard/wg0.conf", {
   privateKey: serverKeys.privateKey,
-  interface: "ens5"    // AWS EC2 interface
+  interface: "ens5", // AWS EC2 interface
 })
 ```
 
@@ -193,14 +187,14 @@ async function setupCompleteServer() {
       privateKey: serverKeys.privateKey,
       port: 51820,
       ip: "10.0.0.1",
-      interface: "eth0"
+      interface: "eth0",
     })
     console.log("Server configuration created")
 
     // 3. Add first client
     const clientKeys = await generateKeys()
     const clientResult = await addPeer("/etc/wireguard/wg0.conf", {
-      publicKey: clientKeys.publicKey
+      publicKey: clientKeys.publicKey,
     })
     console.log(`Client added with IP: ${clientResult.ip}`)
 
@@ -210,15 +204,14 @@ async function setupCompleteServer() {
 
     // 5. Get server public key for client config
     const serverPubKey = await getPubKey("/etc/wireguard/wg0.conf")
-    
+
     return {
       serverPublicKey: serverPubKey.publicKey,
       clientPrivateKey: clientKeys.privateKey,
       clientIP: clientResult.ip,
       serverIP: "10.0.0.1",
-      serverPort: 51820
+      serverPort: 51820,
     }
-
   } catch (error) {
     console.error("Server setup failed:", error.message)
     throw error
@@ -237,12 +230,12 @@ The function may throw errors in the following scenarios:
 ```ts
 try {
   await initConf("/etc/wireguard/wg0.conf", {
-    privateKey: "invalid-key-format"
+    privateKey: "invalid-key-format",
   })
 } catch (error) {
-  if (error.code === 'EACCES') {
+  if (error.code === "EACCES") {
     console.error("Permission denied - run with sudo")
-  } else if (error.message.includes('Invalid key')) {
+  } else if (error.message.includes("Invalid key")) {
     console.error("Invalid private key format")
   } else {
     console.error("Configuration creation failed:", error.message)
@@ -259,7 +252,7 @@ import { chmod } from "fs/promises"
 
 // Create configuration
 await initConf("/etc/wireguard/wg0.conf", {
-  privateKey: serverKeys.privateKey
+  privateKey: serverKeys.privateKey,
 })
 
 // Set secure permissions
@@ -269,6 +262,7 @@ await chmod("/etc/wireguard/wg0.conf", 0o600)
 ### Firewall Rules
 
 The generated configuration includes iptables rules that:
+
 - Allow forwarding through the WireGuard interface
 - Enable NAT for client internet access
 - Clean up rules when the interface is stopped
@@ -283,7 +277,7 @@ const devKeys = await generateKeys()
 await initConf("/tmp/wg-dev.conf", {
   privateKey: devKeys.privateKey,
   port: 51820,
-  ip: "10.0.0.1"
+  ip: "10.0.0.1",
 })
 ```
 
@@ -300,12 +294,12 @@ await initConf("/etc/wireguard/wg0.conf", {
   dns: "10.0.0.1",
   postUp: [
     "iptables -A FORWARD -i %i -j ACCEPT",
-    "iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE"
+    "iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE",
   ],
   postDown: [
     "iptables -D FORWARD -i %i -j ACCEPT",
-    "iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE"
-  ]
+    "iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE",
+  ],
 })
 
 // Set proper permissions
@@ -321,7 +315,7 @@ await initConf("/etc/wireguard/wg0.conf", {
   privateKey: cloudKeys.privateKey,
   port: 51820,
   ip: "10.0.0.1",
-  interface: "ens5"  // Common cloud interface name
+  interface: "ens5", // Common cloud interface name
 })
 ```
 
