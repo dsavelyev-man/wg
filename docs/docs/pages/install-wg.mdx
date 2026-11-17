@@ -1,10 +1,6 @@
 # installWg
 
-Install WireGuard tools on the current platform with automatic detection.
-
-## Overview
-
-The `installWg` function automatically detects your platform and available package managers, then installs WireGuard using the appropriate method. It supports multiple Linux distributions, macOS, and Windows.
+Detect the current platform and install WireGuard tools.
 
 ## Signature
 
@@ -15,86 +11,60 @@ installWg(options?: {
 }): Promise<void>
 ```
 
-## Parameters
+## Options
 
-- **`options`** (optional): Installation configuration
-  - **`force`** (boolean, optional): Force installation even if WireGuard is already installed. Default: `false`
-  - **`silent`** (boolean, optional): Suppress output from package manager. Default: `false`
+- `force?: boolean`: install even when `wg --version` already succeeds
+- `silent?: boolean`: suppress informational output
 
-## Return Value
+## Supported detection
 
-- **Promise\<void\>**: Resolves when installation completes successfully
+- Debian/Ubuntu family with `apt-get`
+- Fedora/RHEL/CentOS/Rocky/AlmaLinux with `dnf`
+- CentOS/RHEL with `yum`
+- Arch Linux with `pacman`
+- Alpine Linux with `apk`
+- macOS with Homebrew
+- Windows with Chocolatey
+- Windows with Winget
 
-## Supported Platforms
+The matching package manager must be available in `PATH`.
 
-### Linux Distributions
-
-- **Ubuntu/Debian**: `sudo apt install wireguard`
-- **CentOS/RHEL**: `sudo yum install epel-release && sudo yum install wireguard-tools`
-- **Fedora**: `sudo dnf install wireguard-tools`
-- **Arch Linux**: `sudo pacman -S wireguard-tools`
-- **Alpine Linux**: `sudo apk add wireguard-tools`
-
-### macOS
-
-- **Homebrew**: `brew install wireguard-tools`
-
-### Windows
-
-- **Chocolatey**: `choco install wireguard`
-- **Winget**: `winget install WireGuard.WireGuard`
-
-## Behavior
-
-1. **Detection**: Automatically detects the current platform and available package managers
-2. **Verification**: Checks if WireGuard is already installed (unless `force` is true)
-3. **Installation**: Runs the appropriate installation command for the detected platform
-4. **Verification**: Confirms installation success by running `wg --version`
-
-## Example Usage
+## Usage
 
 ```ts
 import { installWg } from "@kriper0nind/wg-utils"
 
-// Basic installation
-async function installWireGuard() {
-  try {
-    await installWg()
-    console.log("WireGuard installed successfully!")
-  } catch (error) {
-    console.error("Installation failed:", error.message)
-  }
-}
-
-// Silent installation for automated scripts
-async function silentInstall() {
-  await installWg({ silent: true })
-}
-
-// Force reinstall
-async function reinstall() {
-  await installWg({ force: true })
-}
+await installWg()
 ```
 
-## Error Handling
+Force installation:
 
-The function throws descriptive errors for various failure scenarios:
+```ts
+await installWg({ force: true })
+```
 
-- **Unsupported platform**: When no supported package manager is detected
-- **Installation failure**: When the package manager command fails
-- **Permission issues**: When sudo/administrator privileges are required
-- **Verification failure**: When WireGuard installation cannot be verified
+Silent mode for automation:
 
-## Dependencies
+```ts
+await installWg({ silent: true })
+```
 
-- **Node.js**: `child_process` for executing shell commands
-- **Platform detection**: Uses `os.platform()` for platform identification
-- **Package managers**: Requires appropriate package manager to be installed
+## Behavior
 
-## Notes
+1. Unless `force` is true, run `wg --version`.
+2. Detect the platform and available package manager.
+3. Run the installation commands without shell chaining.
+4. Verify the result with `wg --version`.
 
-- **Permissions**: May require sudo/administrator privileges on most platforms
-- **Network**: Requires internet connection to download packages
-- **Verification**: Always verifies installation by running `wg --version`
-- **Idempotent**: Safe to run multiple times (unless `force` is true)
+On Unix systems, the function prefixes commands with `sudo` when the current process is not root. Ensure non-interactive sudo access when running unattended.
+
+## Errors
+
+- `UnsupportedPlatformError` when no supported package manager is detected
+- `CommandError` when installation or verification fails
+- Permission errors when sudo or elevated access is unavailable
+
+## Related
+
+- [getInstallInstructions](/get-install-instructions)
+- [checkWg](/check-wg)

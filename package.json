@@ -70,5 +70,11 @@
   "publishConfig": {
     "access": "public",
     "provenance": true
-  }
+  },
+  "contributors": [
+    {
+      "name": "Codex",
+      "url": "https://openai.com/codex"
+    }
+  ]
 }

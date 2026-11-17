@@ -1,159 +1,148 @@
 # addPeer
 
-Adds a new peer to a WireGuard configuration file with automatic IP address assignment.
-
-## Overview
-
-The `addPeer` function automatically adds a new peer to an existing WireGuard configuration file. It intelligently assigns the next available IP address in the 10.0.0.0/24 subnet, ensuring no conflicts with existing peers.
+Add a peer to a WireGuard configuration file with automatic IPv4 or IPv6 address allocation.
 
 ## Signature
 
 ```ts
-addPeer(filepath: string, options: {
+import type { AddPeerOptions, AddPeerResult } from "@kriper0nind/wg-utils"
+
+addPeer(filepath: string, options: AddPeerOptions): Promise<AddPeerResult>
+```
+
+```ts
+interface AddPeerOptions {
   publicKey: string
-  persistentKeepalive?: number
   presharedKey?: string
-  allowedIPs?: string
+  persistentKeepalive?: number
+  allowedIPs?: string | string[]
   endpoint?: string
   allowedApps?: string
-}): Promise<{ ip: string }>
+  family?: "ipv4" | "ipv6"
+  addressPool?: string
+  iface?: string
+  sync?: boolean | "auto"
+}
+
+interface AddPeerResult {
+  ip: string
+  address: string
+  family: "ipv4" | "ipv6"
+  peer: WireGuardPeer
+}
 ```
 
-## Parameters
-
-- **`filepath`** (`string`): Path to the WireGuard configuration file (e.g., `/etc/wireguard/wg0.conf`)
-- **`options`** (`object`): Configuration options for the new peer
-  - **`publicKey`** (`string`): The public key of the peer to add
-  - **`persistentKeepalive`** (`number`, optional): Interval in seconds for NAT keepalives
-  - **`presharedKey`** (`string`, optional): PSK from `generatePresharedKey`
-  - **`allowedIPs`** (`string`, optional): Custom CIDR list instead of auto `/32`
-  - **`endpoint`** (`string`, optional): Host/IP and port of the peer
-  - **`allowedApps`** (`string`, optional): Custom helper metadata (non-standard WireGuard key)
-
-## Returns
-
-Returns a Promise that resolves to an object containing:
-
-- **`ip`** (`string`): The IP address assigned to the new peer
-
-## Behavior
-
-### IP Address Assignment
-
-- **First peer**: Gets `10.0.0.2/32` (10.0.0.1 is typically reserved for the server)
-- **Subsequent peers**: Gets the next available IP address in sequence
-- **Algorithm**: Finds the highest IP address among existing peers and increments it by 1
-- **Format**: All assigned IPs use `/32` subnet mask for point-to-point connections
-
-### Configuration File Processing
-
-1. Reads and parses the existing WireGuard configuration file
-2. Analyzes existing peers to find the highest assigned IP address
-3. Calculates the next available IP address
-4. Creates a new peer entry with the provided public key
-5. Writes the updated configuration back to the file
-6. Calls `wg syncconf <iface>` to apply the change to the running interface without downtime
-
-## Optional Peer Fields
-
-- **Persistent Keepalive**: Prevents idle UDP mappings from expiring (common for mobile clients)
-- **Preshared Key**: Adds an extra layer of symmetric encryption per peer
-- **Allowed IPs**: Override the auto-generated `/32` to define specific subnets or multiple CIDRs
-- **Endpoint**: Pre-configure the client's public endpoint for site-to-site setups
-- **Allowed Apps**: Extra metadata stored under `AllowedApps` for downstream tooling (ignored by WireGuard itself)
-
-## Example Usage
-
-### Basic Usage
-
-```ts
-import { addPeer, generateKeys, generatePresharedKey } from "@kriper0nind/wg-utils"
-
-// Generate new key pair
-const keys = await generateKeys()
-
-// Add peer to configuration
-const { presharedkey } = await generatePresharedKey()
-
-const result = await addPeer("/etc/wireguard/wg0.conf", {
-  publicKey: keys.publicKey,
-  presharedKey: presharedkey,
-  persistentKeepalive: 25,
-})
-
-console.log(`New peer added with IP: ${result.ip}`)
-// Output: "New peer added with IP: 10.0.0.2"
-```
-
-### Adding Multiple Peers
-
-```ts
-import { addPeer, generateKeys } from "@kriper0nind/wg-utils"
-
-const configPath = "/etc/wireguard/wg0.conf"
-
-// Add first peer
-const keys1 = await generateKeys()
-const peer1 = await addPeer(configPath, { publicKey: keys1.publicKey })
-console.log(`Peer 1 IP: ${peer1.ip}`) // 10.0.0.2
-
-// Add second peer
-const keys2 = await generateKeys()
-const peer2 = await addPeer(configPath, { publicKey: keys2.publicKey })
-console.log(`Peer 2 IP: ${peer2.ip}`) // 10.0.0.3
-```
-
-### Using Existing Public Key
+## Basic usage
 
 ```ts
 import { addPeer } from "@kriper0nind/wg-utils"
 
-const existingPublicKey = "your-existing-public-key-here"
-
 const result = await addPeer("/etc/wireguard/wg0.conf", {
-  publicKey: existingPublicKey,
-  allowedIPs: "10.0.0.50/32, 192.168.10.0/24",
-  endpoint: "vpn.example.com:51820",
+  publicKey: clientPublicKey,
+  persistentKeepalive: 25,
 })
 
-console.log(`Peer added with IP: ${result.ip}`)
+console.log(result.ip) // 10.0.0.2
+console.log(result.address) // 10.0.0.2/32
+console.log(result.family) // ipv4
 ```
 
-## Generated Configuration
+## Automatic allocation
 
-The function adds a peer entry in the following format to your WireGuard configuration:
+`addPeer()` reads the existing file and derives the address pool from the matching `Interface.Address` value.
+
+- IPv4 addresses are allocated as `/32`.
+- IPv6 addresses are allocated as `/128`.
+- Used interface and peer addresses are skipped.
+- The first free address is allocated.
+- IPv4 is selected by default when an IPv4 interface address exists.
+- `AddressPoolExhaustedError` is thrown when no address is available.
+
+### IPv6
+
+```ts
+const result = await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: clientPublicKey,
+  family: "ipv6",
+})
+
+console.log(result.address) // fd00::2/128
+```
+
+### Custom pool
+
+```ts
+const result = await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: clientPublicKey,
+  addressPool: "10.10.0.0/24",
+})
+```
+
+The explicit pool must match the selected address family.
+
+## Custom routes
+
+When `allowedIPs` is provided, it is used exactly as the peer's route list. The first entry is also used to populate `result.ip`, `result.address`, `result.family`, and `result.peer`.
+
+```ts
+const result = await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: clientPublicKey,
+  allowedIPs: ["10.0.0.50/32", "192.168.10.0/24"],
+})
+```
+
+## Optional peer fields
+
+```ts
+const result = await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: clientPublicKey,
+  presharedKey: presharedKey,
+  persistentKeepalive: 25,
+  endpoint: "vpn.example.com:51820",
+  allowedApps: "android",
+})
+```
+
+`AllowedApps` is preserved as extra metadata for downstream tooling. WireGuard itself ignores unknown keys.
+
+## Sync behavior
+
+`AddPeerOptions` extends `SyncOptions`:
+
+- `sync: false` updates only the file.
+- `sync: true` syncs the configured interface.
+- `sync: "auto"` or omitted syncs only when the interface is already running.
+- `iface` overrides the interface name derived from the file name.
+
+```ts
+await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: clientPublicKey,
+  sync: "auto",
+})
+```
+
+## Generated peer
 
 ```ini
 [Peer]
-PublicKey = <provided-public-key>
-PresharedKey = <optional-psk>
-AllowedIPs = <assigned-ip>/32
-Endpoint = <optional-endpoint>
+PublicKey = client-public-key
+PresharedKey = optional-preshared-key
+AllowedIPs = 10.0.0.2/32
+Endpoint = vpn.example.com:51820
 PersistentKeepalive = 25
-AllowedApps = <optional metadata>
+AllowedApps = android
 ```
 
-## Error Handling
+## Errors
 
-The function may throw errors in the following scenarios:
+- `ConfigValidationError` for a missing public key or invalid options
+- `PeerAlreadyExistsError` for a duplicate public key
+- `AddressPoolExhaustedError` when no address is available
+- Node.js file-system errors for missing files or insufficient permissions
+- `CommandError` when an explicitly requested sync fails
 
-- **File not found**: If the specified configuration file doesn't exist
-- **Permission denied**: If the file cannot be read or written
-- **Invalid configuration**: If the existing configuration file is malformed
-- **File system errors**: If there are issues writing to the file
-- **Sync failures**: If `wg syncconf` fails (e.g., interface not running)
+## Related
 
-## Dependencies
-
-- **`parse`**: Parses WireGuard configuration files
-- **`stringify`**: Converts configuration objects back to WireGuard format
-- **`fs/promises`**: For file system operations
-
-## Notes
-
-- The function automatically creates a `Peers` array if none exists
-- IP addresses are assigned sequentially starting from `10.0.0.2` unless `allowedIPs` is provided
-- The function preserves all existing configuration and comments
-- Custom `allowedIPs` strings are written verbatim, so you can supply multiple CIDRs separated by commas
-- After writing the file the interface is synchronized via `wg syncconf`, so active tunnels pick up the change immediately
-- `AllowedApps` is optional metadata for downstream tooling—WireGuard ignores unknown keys
+- [deletePeer](/delete-peer)
+- [Client configs and QR codes](/client-configs)
+- [syncConf](/sync-conf)

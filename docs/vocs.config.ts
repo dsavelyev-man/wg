@@ -31,6 +31,15 @@ export default defineConfig({
       ],
     },
     {
+      text: "Client Management",
+      items: [
+        {
+          text: "Client Configs & QR Codes",
+          link: "/client-configs",
+        },
+      ],
+    },
+    {
       text: "Key Management",
       items: [
         {

@@ -1,8 +1,24 @@
-# Client Configs and QR Codes
+# Client Configs & QR Codes
 
-Generate complete client profiles and share them as QR codes.
+Create complete WireGuard client profiles and render them as QR codes.
 
-## Generate a config
+## generateClientConfig
+
+```ts
+generateClientConfig(options: {
+  privateKey: string
+  clientAddress: string | string[]
+  serverPublicKey: string
+  serverEndpoint: string
+  allowedIPs?: string | string[]
+  dns?: string | string[]
+  persistentKeepalive?: number
+  presharedKey?: string
+  mtu?: string | number
+  extraInterface?: Record<string, WireGuardValue>
+  extraPeer?: Record<string, WireGuardValue>
+}): string
+```
 
 ```ts
 import { generateClientConfig } from "@kriper0nind/wg-utils"
@@ -10,41 +26,31 @@ import { generateClientConfig } from "@kriper0nind/wg-utils"
 const config = generateClientConfig({
   privateKey: clientPrivateKey,
   clientAddress: "10.0.0.2/32",
-  serverPublicKey: serverPublicKey,
+  serverPublicKey,
   serverEndpoint: "vpn.example.com:51820",
   allowedIPs: ["0.0.0.0/0", "::/0"],
-  dns: "1.1.1.1",
+  dns: ["1.1.1.1", "8.8.8.8"],
   persistentKeepalive: 25,
 })
 ```
 
-The result is a complete `[Interface]` + `[Peer]` WireGuard configuration.
+Defaults:
 
-## Generate a QR code
+- `allowedIPs` defaults to `["0.0.0.0/0", "::/0"]`.
+- `serverEndpoint` must be non-empty.
+- `privateKey`, `serverPublicKey`, and an optional `presharedKey` must be valid WireGuard key strings.
+- `extraInterface` and `extraPeer` are assigned after the standard fields and can add or override fields.
 
-```ts
-import { generateClientQRCode } from "@kriper0nind/wg-utils"
-
-const dataUrl = await generateClientQRCode(config)
-const pngPath = await generateClientQRCode(config, {
-  outputPath: "/tmp/client.png",
-})
-```
-
-For a terminal QR code:
+## End-to-end client provisioning
 
 ```ts
-console.log(
-  await generateClientQRCode(config, {
-    type: "terminal",
-  }),
-)
-```
-
-## End-to-end example
-
-```ts
-import { addPeer, generateClientConfig, generateKeys } from "@kriper0nind/wg-utils"
+import {
+  addPeer,
+  generateClientConfig,
+  generateClientQRCode,
+  generateKeys,
+  getPubKey,
+} from "@kriper0nind/wg-utils"
 
 const clientKeys = await generateKeys()
 const peer = await addPeer("/etc/wireguard/wg0.conf", {
@@ -52,11 +58,71 @@ const peer = await addPeer("/etc/wireguard/wg0.conf", {
   persistentKeepalive: 25,
 })
 
+const { publicKey: serverPublicKey } = await getPubKey("/etc/wireguard/wg0.conf")
+
 const clientConfig = generateClientConfig({
   privateKey: clientKeys.privateKey,
   clientAddress: peer.address,
-  serverPublicKey: serverPublicKey,
+  serverPublicKey,
   serverEndpoint: "vpn.example.com:51820",
   persistentKeepalive: 25,
 })
+
+await generateClientQRCode(clientConfig, {
+  outputPath: `/tmp/${peer.ip}.png`,
+})
 ```
+
+## generateClientQRCode
+
+```ts
+generateClientQRCode(
+  config: string | WireGuardConfig | GenerateClientConfigOptions,
+  options?: {
+    outputPath?: string
+    type?: "data-url" | "terminal"
+    width?: number
+  },
+): Promise<string>
+```
+
+The function accepts:
+
+- WireGuard configuration text
+- A `WireGuardConfig` object
+- `GenerateClientConfigOptions`, which are converted with `generateClientConfig()` first
+
+### Return a PNG data URL
+
+```ts
+import { generateClientQRCode } from "@kriper0nind/wg-utils"
+
+const dataUrl = await generateClientQRCode(clientConfig)
+```
+
+Default width is `512` pixels and the error correction level is `M`.
+
+### Write a PNG file
+
+```ts
+const filepath = await generateClientQRCode(clientConfig, {
+  outputPath: "/tmp/client.png",
+  width: 768,
+})
+```
+
+The parent directory is created when necessary and the PNG is written with mode `0600`.
+
+### Render in a terminal
+
+```ts
+const terminalQr = await generateClientQRCode(clientConfig, {
+  type: "terminal",
+})
+
+console.log(terminalQr)
+```
+
+## Security
+
+Client configurations contain private keys. Treat generated config text, PNG files, QR codes, and data URLs as secrets.

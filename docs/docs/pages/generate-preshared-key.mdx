@@ -1,10 +1,6 @@
 # generatePresharedKey
 
-Generate WireGuard preshared keys (PSKs) for hardening peer links.
-
-## Overview
-
-`generatePresharedKey` wraps `wg genpsk` and returns a base64-encoded preshared key that can be attached to clients via `addPeer`. PSKs add an extra layer of symmetric encryption on top of standard WireGuard public keys.
+Generate a WireGuard preshared key with `wg genpsk`.
 
 ## Signature
 
@@ -13,30 +9,34 @@ generatePresharedKey(options?: {
   keyPath?: string
 }): Promise<{
   presharedkey: string
+  keyPath?: string
 }>
 ```
 
-## Parameters
-
-- **`options`** (`object`, optional): Generation options
-  - **`keyPath`** (`string`, optional): Custom path where the generated key should be written (default: `/etc/wireguard/presharedkey`)
-
-## Returns
-
-Resolves with:
-
-- **`presharedkey`** (`string`): Trimmed preshared key ready to be passed to `addPeer`
-
-## Basic Usage
+## Basic usage
 
 ```ts
 import { generatePresharedKey } from "@kriper0nind/wg-utils"
 
 const { presharedkey } = await generatePresharedKey()
-console.log("PSK:", presharedkey)
 ```
 
-## Adding a Peer with a PSK
+No file is written unless `keyPath` is provided.
+
+## Write the key to a file
+
+```ts
+const result = await generatePresharedKey({
+  keyPath: "/etc/wireguard/clients/client1.psk",
+})
+
+console.log(result.presharedkey)
+console.log(result.keyPath)
+```
+
+The parent directory is created when necessary and the file is written with mode `0600`.
+
+## Add a peer with a PSK
 
 ```ts
 import { addPeer, generateKeys, generatePresharedKey } from "@kriper0nind/wg-utils"
@@ -50,41 +50,44 @@ await addPeer("/etc/wireguard/wg0.conf", {
 })
 ```
 
-## Custom Output Path
+Include the same PSK in the client configuration:
 
 ```ts
-const { presharedkey } = await generatePresharedKey({
-  keyPath: "/secure/wireguard/client1.psk",
+import {
+  addPeer,
+  generateClientConfig,
+  generateKeys,
+  generatePresharedKey,
+  getPubKey,
+} from "@kriper0nind/wg-utils"
+
+const clientKeys = await generateKeys()
+const { presharedkey } = await generatePresharedKey()
+
+const peer = await addPeer("/etc/wireguard/wg0.conf", {
+  publicKey: clientKeys.publicKey,
+  presharedKey: presharedkey,
 })
 
-// Share securely with the matching client configuration
+const { publicKey: serverPublicKey } = await getPubKey("/etc/wireguard/wg0.conf")
+
+const clientConfig = generateClientConfig({
+  privateKey: clientKeys.privateKey,
+  clientAddress: peer.address,
+  serverPublicKey,
+  serverEndpoint: "vpn.example.com:51820",
+  presharedKey: presharedkey,
+})
 ```
 
-## Security Considerations
+## Security
 
-1. Treat preshared keys like private keys—never commit or log them.
-2. Set restrictive permissions on the generated file (`chmod 600 client.psk`).
-3. Rotate PSKs whenever you rotate client key pairs.
+- Treat PSKs like private keys.
+- Do not commit or log generated PSKs.
+- Rotate the PSK when rotating the matching client key pair.
 
-## Error Handling
+## Related
 
-```ts
-try {
-  const psk = await generatePresharedKey()
-  console.log("Generated PSK", psk.presharedkey)
-} catch (error) {
-  if (error.message.includes("wg genpsk")) {
-    console.error("WireGuard tools missing from PATH")
-  } else if (error.code === "EACCES") {
-    console.error("Permission denied - run with sudo")
-  } else {
-    console.error("Failed to generate PSK:", error.message)
-  }
-}
-```
-
-## Related Topics
-
-- [`generateKeys`](/generate-keys) — create public/private key pairs
-- [`addPeer`](/add-peer) — attach peers with PSKs, keepalives, endpoints
-- [`api-reference`](/api-reference#key-management) — full function signatures
+- [generateKeys](/generate-keys)
+- [addPeer](/add-peer)
+- [Client configs and QR codes](/client-configs)

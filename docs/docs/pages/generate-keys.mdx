@@ -1,10 +1,6 @@
 # generateKeys
 
-Generates secure WireGuard key pairs for VPN authentication.
-
-## Overview
-
-The `generateKeys` function creates a new public/private key pair using WireGuard's built-in key generation utilities. This is essential for setting up secure VPN connections.
+Generate a WireGuard private/public key pair with `wg genkey` and `wg pubkey`.
 
 ## Signature
 
@@ -15,219 +11,73 @@ generateKeys(options?: {
 }): Promise<{
   publicKey: string
   privateKey: string
+  privateKeyPath?: string
+  publicKeyPath?: string
 }>
 ```
 
-## Parameters
-
-- **`options`** (`object`, optional): Configuration options
-  - **`privateKeyPath`** (`string`, optional): Custom path to save the private key
-  - **`publicKeyPath`** (`string`, optional): Custom path to save the public key
-
-## Returns
-
-Returns a Promise that resolves to an object containing:
-
-- **`publicKey`** (`string`): The generated public key (safe to share)
-- **`privateKey`** (`string`): The generated private key (keep secret)
-
-## Basic Usage
+## Basic usage
 
 ```ts
 import { generateKeys } from "@kriper0nind/wg-utils"
 
-// Generate keys with default settings
-const keys = await generateKeys()
-
-console.log("Public Key:", keys.publicKey)
-console.log("Private Key:", keys.privateKey)
+const { privateKey, publicKey } = await generateKeys()
 ```
 
-## Advanced Usage
+Keys are kept in memory by default. No files are written unless paths are supplied.
 
-### Custom Key Paths
+## Write key files
 
 ```ts
 const keys = await generateKeys({
-  privateKeyPath: "/custom/path/server.key",
-  publicKeyPath: "/custom/path/server.pub",
+  privateKeyPath: "/etc/wireguard/server.key",
+  publicKeyPath: "/etc/wireguard/server.pub",
 })
+
+console.log(keys.privateKeyPath)
+console.log(keys.publicKeyPath)
 ```
 
-### Server Setup
+When paths are provided:
+
+- Parent directories are created recursively.
+- Files are written with mode `0600`.
+- The returned object includes the written paths.
+
+Keeping the public key at mode `0600` is intentional; it is safe to relax permissions separately if needed.
+
+## Typical server setup
 
 ```ts
-import { generateKeys, initConf } from "@kriper0nind/wg-utils"
+import { generateKeys, initConf, up } from "@kriper0nind/wg-utils"
 
-// Generate server keys
 const serverKeys = await generateKeys()
 
-// Create server configuration
 await initConf("/etc/wireguard/wg0.conf", {
   privateKey: serverKeys.privateKey,
-  port: 51820,
   ip: "10.0.0.1",
+  port: 51820,
 })
 
-console.log("Server public key:", serverKeys.publicKey)
+await up("wg0")
 ```
 
-### Client Setup
+## Key format
+
+WireGuard keys are 32-byte base64 strings. The library validates generated keys with the equivalent of:
 
 ```ts
-import { generateKeys, addPeer } from "@kriper0nind/wg-utils"
-
-// Generate client keys
-const clientKeys = await generateKeys()
-
-// Add client to server configuration
-const result = await addPeer("/etc/wireguard/wg0.conf", {
-  publicKey: clientKeys.publicKey,
-})
-
-console.log("Client private key:", clientKeys.privateKey)
-console.log("Client IP:", result.ip)
+;/^[A-Za-z0-9+/]{43}=$/
 ```
 
-## Key Security
+## Errors
 
-### Best Practices
+- `WgNotFoundError` when the `wg` executable is unavailable
+- `ConfigValidationError` when generated output is not a valid key
+- Node.js file-system errors when key files cannot be written
 
-1. **Keep private keys secure**: Never share private keys
-2. **Use proper file permissions**: Set 600 permissions for private key files
-3. **Store keys safely**: Consider using secure key management systems
-4. **Rotate keys regularly**: Generate new keys periodically
+## Related
 
-### File Permissions
-
-```ts
-import { chmod } from "fs/promises"
-
-const keys = await generateKeys()
-
-// Set secure permissions for private key
-await chmod("/etc/wireguard/privatekey", 0o600)
-```
-
-## Key Format
-
-WireGuard keys are base64-encoded strings:
-
-- **Public Key**: 44 characters (e.g., `"ABC123...XYZ789="`)
-- **Private Key**: 44 characters (e.g., `"DEF456...UVW012="`)
-
-## Error Handling
-
-The function may throw errors in the following scenarios:
-
-- **WireGuard not installed**: Missing `wg` command
-- **Permission denied**: Insufficient privileges to write key files
-- **Invalid paths**: Non-existent directories for custom paths
-- **System errors**: General system-level failures
-
-```ts
-try {
-  const keys = await generateKeys()
-} catch (error) {
-  if (error.message.includes("wg genkey")) {
-    console.error("WireGuard is not installed")
-  } else if (error.code === "EACCES") {
-    console.error("Permission denied - run with sudo")
-  } else {
-    console.error("Key generation failed:", error.message)
-  }
-}
-```
-
-## Implementation Details
-
-The function uses WireGuard's native key generation:
-
-1. **Private Key**: Generated using `wg genkey`
-2. **Public Key**: Derived from private key using `wg pubkey`
-3. **File Operations**: Keys are written to `/etc/wireguard/` by default
-4. **Security**: Uses `umask 077` for secure file creation
-
-## Examples
-
-### Complete VPN Setup
-
-```ts
-import { generateKeys, initConf, addPeer, up } from "@kriper0nind/wg-utils"
-
-async function setupVPN() {
-  try {
-    // 1. Generate server keys
-    const serverKeys = await generateKeys()
-    console.log("Server keys generated")
-
-    // 2. Create server configuration
-    await initConf("/etc/wireguard/wg0.conf", {
-      privateKey: serverKeys.privateKey,
-      port: 51820,
-      ip: "10.0.0.1",
-    })
-    console.log("Server configuration created")
-
-    // 3. Generate client keys
-    const clientKeys = await generateKeys()
-    console.log("Client keys generated")
-
-    // 4. Add client to server
-    const result = await addPeer("/etc/wireguard/wg0.conf", {
-      publicKey: clientKeys.publicKey,
-    })
-    console.log(`Client added with IP: ${result.ip}`)
-
-    // 5. Start the VPN
-    await up("wg0")
-    console.log("VPN started successfully")
-
-    // 6. Return keys for client configuration
-    return {
-      serverPublicKey: serverKeys.publicKey,
-      clientPrivateKey: clientKeys.privateKey,
-      clientIP: result.ip,
-    }
-  } catch (error) {
-    console.error("VPN setup failed:", error.message)
-    throw error
-  }
-}
-```
-
-### Batch Key Generation
-
-```ts
-async function generateMultipleKeys(count: number) {
-  const keyPairs = []
-
-  for (let i = 0; i < count; i++) {
-    const keys = await generateKeys()
-    keyPairs.push({
-      id: i + 1,
-      publicKey: keys.publicKey,
-      privateKey: keys.privateKey,
-    })
-  }
-
-  return keyPairs
-}
-
-// Generate 5 key pairs
-const keyPairs = await generateMultipleKeys(5)
-console.log(`Generated ${keyPairs.length} key pairs`)
-```
-
-## Dependencies
-
-- **WireGuard tools**: `wg genkey` and `wg pubkey` commands
-- **Node.js fs/promises**: For file operations
-- **System permissions**: Write access to `/etc/wireguard/`
-
-## Notes
-
-- Keys are generated using WireGuard's cryptographically secure random number generator
-- The function automatically handles file creation and permissions
-- Generated keys are immediately ready for use in WireGuard configurations
-- Private keys should never be logged or transmitted in plain text
+- [generatePresharedKey](/generate-preshared-key)
+- [getPubKey](/get-pubkey)
+- [initConf](/init-conf)

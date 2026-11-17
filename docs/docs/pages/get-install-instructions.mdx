@@ -1,10 +1,6 @@
 # getInstallInstructions
 
-Get platform-specific installation instructions without installing WireGuard.
-
-## Overview
-
-The `getInstallInstructions` function detects the current platform and available package managers, then returns the appropriate installation command and platform information. This is useful for displaying installation instructions to users or checking platform support.
+Return platform-specific WireGuard installation instructions without installing anything.
 
 ## Signature
 
@@ -13,122 +9,67 @@ getInstallInstructions(): Promise<{
   platform: string
   packageManager?: string
   command?: string
+  commands: string[][]
   name?: string
   supported: boolean
 }>
 ```
 
-## Return Value
-
-- **Promise\<object\>**: Resolves to an object containing:
-  - **`platform`** (string): The detected platform (`linux`, `darwin`, `win32`)
-  - **`packageManager`** (string, optional): The detected package manager
-  - **`command`** (string, optional): The installation command to run
-  - **`name`** (string, optional): Human-readable platform name
-  - **`supported`** (boolean): Whether the platform is supported
-
-## Behavior
-
-1. **Platform Detection**: Uses `os.platform()` to identify the current platform
-2. **Package Manager Detection**: Checks for available package managers on the platform
-3. **Command Generation**: Returns the appropriate installation command
-4. **Support Status**: Indicates whether automatic installation is supported
-
-## Example Usage
+## Example
 
 ```ts
 import { getInstallInstructions } from "@kriper0nind/wg-utils"
 
-// Get installation instructions
-async function showInstallInstructions() {
-  const instructions = await getInstallInstructions()
+const instructions = await getInstallInstructions()
 
-  if (instructions.supported) {
-    console.log(`Platform: ${instructions.name}`)
-    console.log(`Package Manager: ${instructions.packageManager}`)
-    console.log(`Command: ${instructions.command}`)
-  } else {
-    console.log(`Platform ${instructions.platform} is not supported`)
-    console.log("Please install WireGuard manually:")
-    console.log("  Linux: https://www.wireguard.com/install/")
-    console.log("  macOS: brew install wireguard-tools")
-    console.log("  Windows: https://www.wireguard.com/install/")
-  }
-}
-
-// Check platform support
-async function checkSupport() {
-  const instructions = await getInstallInstructions()
-
-  if (instructions.supported) {
-    console.log("✅ Automatic installation supported")
-  } else {
-    console.log("❌ Manual installation required")
-  }
+if (instructions.supported) {
+  console.log(instructions.command)
+} else {
+  console.log(`Automatic installation is not supported on ${instructions.platform}`)
 }
 ```
 
-## Platform Detection
+## Response
 
-### Linux
+- `platform`: value from `os.platform()`
+- `packageManager`: detected package manager
+- `command`: commands joined with `&&` for display
+- `commands`: exact argument arrays that would be executed
+- `name`: human-readable platform or distribution name
+- `supported`: whether a supported installation plan was found
 
-- **Ubuntu/Debian**: Detects `apt` package manager
-- **CentOS/RHEL**: Detects `yum` package manager
-- **Fedora**: Detects `dnf` package manager
-- **Arch Linux**: Detects `pacman` package manager
-- **Alpine Linux**: Detects `apk` package manager
-
-### macOS
-
-- **Homebrew**: Detects `brew` package manager
-
-### Windows
-
-- **Chocolatey**: Detects `choco` package manager
-- **Winget**: Detects `winget` package manager
-
-## Use Cases
-
-- **Pre-installation checks**: Verify platform support before attempting installation
-- **User guidance**: Display installation instructions in CLI tools or web interfaces
-- **Platform validation**: Check if the current environment supports automatic installation
-- **Documentation generation**: Generate platform-specific installation guides
-
-## Example Output
+`commands` is the safer source for automation because it preserves executable and argument boundaries.
 
 ```ts
-// On Ubuntu
+for (const command of instructions.commands) {
+  const [file, ...args] = command
+  console.log(file, args)
+}
+```
+
+## Example response
+
+```ts
 {
   platform: "linux",
-  packageManager: "ubuntu",
-  command: "sudo apt update && sudo apt install -y wireguard",
+  packageManager: "apt-get",
+  command: "sudo apt-get update && sudo apt-get install -y wireguard",
+  commands: [
+    ["sudo", "apt-get", "update"],
+    ["sudo", "apt-get", "install", "-y", "wireguard"]
+  ],
   name: "Ubuntu/Debian",
   supported: true
 }
-
-// On macOS with Homebrew
-{
-  platform: "darwin",
-  packageManager: "homebrew",
-  command: "brew install wireguard-tools",
-  name: "macOS (Homebrew)",
-  supported: true
-}
-
-// On unsupported platform
-{
-  platform: "freebsd",
-  supported: false
-}
 ```
-
-## Dependencies
-
-- **Node.js**: `os` module for platform detection
-- **Package managers**: Requires appropriate package manager to be installed for detection
 
 ## Notes
 
-- **Detection only**: This function only detects and provides instructions, it doesn't install anything
-- **No side effects**: Safe to call multiple times without any system changes
-- **Platform specific**: Results vary based on the current platform and available tools
+- This function has no installation side effects.
+- Detection depends on `/etc/os-release` on Linux and available package managers in `PATH`.
+- Unsupported platforms return `supported: false` and an empty `commands` array.
+
+## Related
+
+- [installWg](/install-wg)
+- [checkWg & requireWg](/check-wg)

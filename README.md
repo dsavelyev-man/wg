@@ -9,7 +9,14 @@ npm install @kriper0nind/wg-utils
 ```
 
 ```ts
-import { addPeer, generateClientConfig, generateKeys, initConf, up } from "@kriper0nind/wg-utils"
+import {
+  addPeer,
+  generateClientConfig,
+  generateClientQRCode,
+  generateKeys,
+  initConf,
+  up,
+} from "@kriper0nind/wg-utils"
 
 const serverKeys = await generateKeys()
 const clientKeys = await generateKeys()
@@ -34,11 +41,14 @@ const clientConfig = generateClientConfig({
   persistentKeepalive: 25,
 })
 
+await generateClientQRCode(clientConfig, {
+  outputPath: "/tmp/client.png",
+})
+
 await up("wg0")
-console.log(clientConfig)
 ```
 
-Keys are kept in memory by default. Pass `privateKeyPath`/`publicKeyPath` or `keyPath` only when you want the library to write files, which are created with mode `0600`.
+Keys are kept in memory by default. Pass `privateKeyPath`/`publicKeyPath` or `keyPath` only when you want the library to write files; generated files use mode `0600`.
 
 ## Features
 
@@ -79,7 +89,9 @@ console.log(await listPeers("/etc/wireguard/wg0.conf"))
 console.log(await getPeer("/etc/wireguard/wg0.conf", "peer-public-key"))
 ```
 
-`parse`, `stringify`, `readConfig`, and `writeConfig` use exported `WireGuardConfig`, `WireGuardInterface`, and `WireGuardPeer` types. Repeated keys such as multiple `Address` lines are merged as comma-separated values.
+`parse`, `stringify`, `readConfig`, and `writeConfig` use the exported `WireGuardConfig`, `WireGuardInterface`, and `WireGuardPeer` types. Repeated keys such as multiple `Address` lines are merged as comma-separated values.
+
+`writeConfig` validates and writes atomically, but it does not sync a running interface. Use `syncConf(iface)` after changing an active tunnel.
 
 ## Peer Management
 
@@ -95,6 +107,8 @@ const result = await addPeer("/etc/wireguard/wg0.conf", {
 
 console.log(result.address) // 10.0.0.2/32
 console.log(result.ip) // 10.0.0.2
+console.log(result.family) // ipv4
+console.log(result.peer) // WireGuardPeer object
 
 const ipv6 = getNextPeerAddress(
   {
@@ -106,7 +120,7 @@ const ipv6 = getNextPeerAddress(
 await deletePeer("/etc/wireguard/wg0.conf", { publicKey: "peer-public-key" })
 ```
 
-Address allocation derives the pool from `Interface.Address`, skips used addresses, supports `/32` IPv4 and `/128` IPv6 peers, and throws `AddressPoolExhaustedError` when no address remains.
+Address allocation derives the pool from `Interface.Address`, skips used addresses, and allocates `/32` IPv4 or `/128` IPv6 peers. `sync` defaults to `"auto"`: the interface is synced only when it is already running.
 
 ## Interface API
 
@@ -198,9 +212,15 @@ try {
 ```bash
 npm ci
 npm run check
+npm run --prefix docs build
 ```
 
 `npm run check` runs linting, formatting verification, type checking, tests, and the dual ESM/CJS build.
+
+## Contributors
+
+- [dsavelyev-man](https://github.com/dsavelyev-man) — author
+- [Codex](https://openai.com/codex) — documentation and maintenance
 
 ## License
 

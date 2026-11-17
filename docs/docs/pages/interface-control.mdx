@@ -1,437 +1,151 @@
 # Interface Control
 
-Control WireGuard interfaces with `up` and `down` functions for starting and stopping VPN connections.
+Start, stop, restart, inspect, save, and synchronize WireGuard interfaces.
 
-## Overview
-
-The interface control functions allow you to programmatically start and stop WireGuard interfaces. These functions are essential for managing VPN connections and are typically used after configuration changes.
-
-## Functions
-
-### `up(iface: string)`
-
-Starts a WireGuard interface using `wg-quick up`.
-
-**Parameters:**
-
-- `iface` (`string`): Interface name (e.g., "wg0", "wg1")
-
-**Returns:** `Promise<void>`
-
-### `down(iface: string)`
-
-Stops a WireGuard interface using `wg-quick down`.
-
-**Parameters:**
-
-- `iface` (`string`): Interface name (e.g., "wg0", "wg1")
-
-**Returns:** `Promise<void>`
-
-## Basic Usage
-
-### Starting an Interface
+## Start and stop
 
 ```ts
-import { up } from "@kriper0nind/wg-utils"
+import { down, restart, up } from "@kriper0nind/wg-utils"
 
-// Start the wg0 interface
 await up("wg0")
-console.log("WireGuard interface started")
-```
-
-### Stopping an Interface
-
-```ts
-import { down } from "@kriper0nind/wg-utils"
-
-// Stop the wg0 interface
+await restart("wg0")
 await down("wg0")
-console.log("WireGuard interface stopped")
 ```
 
-### Complete Interface Management
+### up
 
 ```ts
-import { up, down } from "@kriper0nind/wg-utils"
-
-async function manageInterface(iface: string, action: "start" | "stop") {
-  try {
-    if (action === "start") {
-      await up(iface)
-      console.log(`${iface} started successfully`)
-    } else {
-      await down(iface)
-      console.log(`${iface} stopped successfully`)
-    }
-  } catch (error) {
-    console.error(`Failed to ${action} ${iface}:`, error.message)
-    throw error
-  }
-}
-
-// Usage
-await manageInterface("wg0", "start")
-await manageInterface("wg0", "stop")
+up(iface: string, options?: { configPath?: string }): Promise<void>
 ```
 
-## Advanced Usage
+- Linux and macOS: runs `wg-quick up <iface>`.
+- Windows: installs the tunnel service through `wireguard.exe`.
+- `configPath` is used only on Windows and defaults to `%ProgramData%\\WireGuard\\<iface>.conf`.
 
-### Interface Status Checking
+### down
 
 ```ts
-import { exec } from "child_process"
-import { promisify } from "util"
-
-const execAsync = promisify(exec)
-
-async function isInterfaceUp(iface: string): Promise<boolean> {
-  try {
-    const { stdout } = await execAsync(`wg show ${iface}`)
-    return stdout.trim().length > 0
-  } catch {
-    return false
-  }
-}
-
-async function safeUp(iface: string) {
-  const isUp = await isInterfaceUp(iface)
-
-  if (isUp) {
-    console.log(`${iface} is already running`)
-    return
-  }
-
-  await up(iface)
-  console.log(`${iface} started`)
-}
+down(iface: string): Promise<void>
 ```
 
-### Multiple Interface Management
+- Linux and macOS: runs `wg-quick down <iface>`.
+- Windows: removes the tunnel service.
+
+### restart
 
 ```ts
-class InterfaceManager {
-  private interfaces: string[] = []
-
-  async startInterface(iface: string) {
-    try {
-      await up(iface)
-      this.interfaces.push(iface)
-      console.log(`${iface} started`)
-    } catch (error) {
-      console.error(`Failed to start ${iface}:`, error.message)
-      throw error
-    }
-  }
-
-  async stopInterface(iface: string) {
-    try {
-      await down(iface)
-      this.interfaces = this.interfaces.filter((i) => i !== iface)
-      console.log(`${iface} stopped`)
-    } catch (error) {
-      console.error(`Failed to stop ${iface}:`, error.message)
-      throw error
-    }
-  }
-
-  async stopAll() {
-    for (const iface of [...this.interfaces]) {
-      await this.stopInterface(iface)
-    }
-  }
-
-  getActiveInterfaces() {
-    return [...this.interfaces]
-  }
-}
-
-// Usage
-const manager = new InterfaceManager()
-
-await manager.startInterface("wg0")
-await manager.startInterface("wg1")
-
-console.log("Active interfaces:", manager.getActiveInterfaces())
-
-// Stop all interfaces
-await manager.stopAll()
+restart(iface: string, options?: { configPath?: string }): Promise<void>
 ```
 
-### Interface Restart
+Stops and then starts the interface.
+
+## Inspect status
 
 ```ts
-async function restartInterface(iface: string) {
-  try {
-    // Stop the interface
-    await down(iface)
-    console.log(`${iface} stopped`)
+import {
+  getInterfaceStatus,
+  isWgUp,
+  parseWgDump,
+  validateInterfaceName,
+} from "@kriper0nind/wg-utils"
 
-    // Wait a moment
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // Start the interface
-    await up(iface)
-    console.log(`${iface} restarted`)
-  } catch (error) {
-    console.error(`Failed to restart ${iface}:`, error.message)
-    throw error
-  }
-}
+console.log(await isWgUp("wg0"))
+console.log(await getInterfaceStatus("wg0"))
 ```
 
-## Error Handling
+`isWgUp()` returns `false` when `wg show <iface>` fails.
 
-### Common Error Scenarios
+`getInterfaceStatus()` parses `wg show <iface> dump` into:
 
 ```ts
-import { up, down } from "@kriper0nind/wg-utils"
+interface InterfaceStatus {
+  name: string
+  publicKey?: string
+  listenPort: number
+  fwmark?: string
+  peers: PeerStatus[]
+}
 
-async function safeInterfaceControl(iface: string, action: "up" | "down") {
-  try {
-    if (action === "up") {
-      await up(iface)
-    } else {
-      await down(iface)
-    }
-  } catch (error) {
-    if (error.message.includes("Permission denied")) {
-      console.error("Permission denied - run with sudo")
-    } else if (error.message.includes("No such device")) {
-      console.error(`Interface ${iface} does not exist`)
-    } else if (error.message.includes("already exists")) {
-      console.error(`Interface ${iface} is already running`)
-    } else if (error.message.includes("not found")) {
-      console.error(`Configuration file for ${iface} not found`)
-    } else {
-      console.error(`Interface control failed:`, error.message)
-    }
-    throw error
-  }
+interface PeerStatus {
+  publicKey: string
+  presharedKey?: string
+  endpoint?: string
+  allowedIps: string[]
+  latestHandshake: number
+  latestHandshakeAt?: string
+  transferRx: number
+  transferTx: number
+  persistentKeepalive: number
 }
 ```
 
-### Retry Logic
+`parseWgDump(iface, output)` is exported for testing or custom command execution.
+
+`validateInterfaceName()` enforces names matching `[a-zA-Z0-9_=+.-]{1,32}` and returns the trimmed name.
+
+## Handshakes and transfer counters
 
 ```ts
-async function upWithRetry(iface: string, maxRetries: number = 3) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      await up(iface)
-      console.log(`${iface} started successfully`)
-      return
-    } catch (error) {
-      console.warn(`Attempt ${attempt} failed:`, error.message)
+import { getLatestHandshake } from "@kriper0nind/wg-utils"
 
-      if (attempt === maxRetries) {
-        throw new Error(`Failed to start ${iface} after ${maxRetries} attempts`)
-      }
+const peers = await getLatestHandshake("wg0")
 
-      // Wait before retry
-      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
-    }
-  }
+for (const peer of peers) {
+  console.log(peer.publicKey)
+  console.log(peer.latestHandshakeSeconds)
+  console.log(peer.transferRx, peer.transferTx)
 }
 ```
 
-## Complete VPN Management
+See [getLatestHandshake](/get-latest-handshake) for the complete response shape.
+
+## Save a running config
 
 ```ts
-import { up, down, initConf, addPeer, generateKeys } from "@kriper0nind/wg-utils"
+import { saveConfig } from "@kriper0nind/wg-utils"
 
-class VPNManager {
-  constructor(private iface: string = "wg0") {}
-
-  async setup() {
-    // Generate server keys
-    const serverKeys = await generateKeys()
-
-    // Create server configuration
-    await initConf(`/etc/wireguard/${this.iface}.conf`, {
-      privateKey: serverKeys.privateKey,
-      port: 51820,
-      ip: "10.0.0.1",
-    })
-
-    console.log("VPN server configured")
-    return serverKeys
-  }
-
-  async start() {
-    await up(this.iface)
-    console.log(`VPN server ${this.iface} started`)
-  }
-
-  async stop() {
-    await down(this.iface)
-    console.log(`VPN server ${this.iface} stopped`)
-  }
-
-  async restart() {
-    await this.stop()
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    await this.start()
-  }
-
-  async addClient() {
-    const clientKeys = await generateKeys()
-    const result = await addPeer(`/etc/wireguard/${this.iface}.conf`, {
-      publicKey: clientKeys.publicKey,
-    })
-
-    // Restart to apply changes
-    await this.restart()
-
-    return {
-      privateKey: clientKeys.privateKey,
-      publicKey: clientKeys.publicKey,
-      ip: result.ip,
-    }
-  }
-}
-
-// Usage
-const vpn = new VPNManager("wg0")
-
-// Setup and start VPN
-await vpn.setup()
-await vpn.start()
-
-// Add a client
-const client = await vpn.addClient()
-console.log("Client added:", client.ip)
-
-// Stop VPN
-await vpn.stop()
+const path = await saveConfig("wg0")
+console.log(path)
 ```
-
-## System Integration
-
-### Service Management
 
 ```ts
-import { exec } from "child_process"
-import { promisify } from "util"
-
-const execAsync = promisify(exec)
-
-async function enableSystemdService(iface: string) {
-  try {
-    await execAsync(`systemctl enable wg-quick@${iface}`)
-    console.log(`Systemd service enabled for ${iface}`)
-  } catch (error) {
-    console.error("Failed to enable systemd service:", error.message)
-  }
-}
-
-async function startSystemdService(iface: string) {
-  try {
-    await execAsync(`systemctl start wg-quick@${iface}`)
-    console.log(`Systemd service started for ${iface}`)
-  } catch (error) {
-    console.error("Failed to start systemd service:", error.message)
-  }
-}
+saveConfig(
+  iface: string,
+  options?: { filepath?: string },
+): Promise<string | undefined>
 ```
 
-### Health Monitoring
+Behavior:
+
+- Unix without `filepath`: runs `wg-quick save` and returns `/etc/wireguard/<iface>.conf`.
+- Windows or when `filepath` is provided: reads `wg showconf <iface>`.
+- With `filepath`, writes the output with mode `0600` and returns the path.
+- On Windows without `filepath`, returns the configuration text.
+
+## Sync without restarting
 
 ```ts
-async function monitorInterface(iface: string, intervalMs: number = 30000) {
-  const checkStatus = async () => {
-    try {
-      const { stdout } = await execAsync(`wg show ${iface}`)
-      const isUp = stdout.trim().length > 0
+import { syncConf } from "@kriper0nind/wg-utils"
 
-      if (isUp) {
-        console.log(`${iface} is healthy`)
-      } else {
-        console.warn(`${iface} appears to be down`)
-        // Optionally restart
-        // await up(iface)
-      }
-    } catch (error) {
-      console.error(`Health check failed for ${iface}:`, error.message)
-    }
-  }
-
-  // Initial check
-  await checkStatus()
-
-  // Set up interval
-  const interval = setInterval(checkStatus, intervalMs)
-
-  // Return cleanup function
-  return () => clearInterval(interval)
-}
-
-// Usage
-const cleanup = await monitorInterface("wg0", 30000)
-
-// Stop monitoring after 5 minutes
-setTimeout(cleanup, 5 * 60 * 1000)
+await syncConf("wg0")
 ```
 
-## Examples
+`syncConf()` runs `wg-quick strip`, writes the stripped config to a secure temporary file, and runs `wg syncconf`. See [syncConf](/sync-conf).
 
-### Development Workflow
+## Command paths
 
-```ts
-async function devWorkflow() {
-  const iface = "wg-dev"
+Override executable paths with environment variables:
 
-  try {
-    // Start development VPN
-    await up(iface)
-    console.log("Development VPN started")
-
-    // Do development work...
-    console.log("Working with VPN...")
-  } finally {
-    // Always clean up
-    try {
-      await down(iface)
-      console.log("Development VPN stopped")
-    } catch (error) {
-      console.warn("Failed to stop development VPN:", error.message)
-    }
-  }
-}
+```bash
+WG_UTILS_WG_PATH=/usr/bin/wg
+WG_UTILS_WG_QUICK_PATH=/usr/bin/wg-quick
+WG_UTILS_WIREGUARD_PATH="C:\\Program Files\\WireGuard\\wireguard.exe"
 ```
 
-### Production Deployment
+Commands are spawned directly with argument arrays and `shell: false`.
 
-```ts
-async function deployVPN() {
-  const iface = "wg0"
+## Related
 
-  try {
-    // Stop existing interface
-    await down(iface)
-    console.log("Stopped existing interface")
-  } catch (error) {
-    console.log("No existing interface to stop")
-  }
-
-  // Apply new configuration
-  // ... configuration updates ...
-
-  // Start with new configuration
-  await up(iface)
-  console.log("VPN deployed successfully")
-}
-```
-
-## Dependencies
-
-- **`wg-quick`**: WireGuard's interface management tool
-- **System privileges**: Root/sudo access required
-- **Configuration files**: Must exist in `/etc/wireguard/`
-
-## Notes
-
-- Interface names should match configuration file names (e.g., "wg0" for "/etc/wireguard/wg0.conf")
-- The `up` function applies all PostUp commands from the configuration
-- The `down` function applies all PostDown commands for cleanup
-- Interfaces must be stopped before making configuration changes
-- Always handle errors gracefully in production environments
+- [syncConf](/sync-conf)
+- [getLatestHandshake](/get-latest-handshake)
+- [API reference](/api-reference)

@@ -1,338 +1,109 @@
 # deletePeer
 
-Removes a peer from a WireGuard configuration file by public key.
+Remove peers or toggle their enabled state while preserving the rest of the configuration file.
 
-## Overview
-
-The `deletePeer` function safely removes a specific peer from an existing WireGuard configuration file. It identifies the peer by their public key and removes the entire peer section from the configuration.
-
-## Signature
+## Delete
 
 ```ts
-deletePeer(filepath: string, where: {
-  publicKey: string
-}): Promise<void>
+deletePeer(
+  filepath: string,
+  where: { publicKey: string },
+  options?: ConfigWriteOptions & SyncOptions,
+): Promise<boolean>
 ```
-
-## Parameters
-
-- **`filepath`** (`string`): Path to the WireGuard configuration file
-- **`where`** (`object`): Identification criteria
-  - **`publicKey`** (`string`): Public key of the peer to remove
-
-## Returns
-
-Returns a Promise that resolves when the peer is successfully removed.
-
-## Basic Usage
 
 ```ts
 import { deletePeer } from "@kriper0nind/wg-utils"
 
-// Remove a peer by public key
-await deletePeer("/etc/wireguard/wg0.conf", {
-  publicKey: "client-public-key-to-remove",
+const removed = await deletePeer("/etc/wireguard/wg0.conf", {
+  publicKey: clientPublicKey,
 })
 
-console.log("Peer removed successfully")
-```
-
-## Advanced Usage
-
-### Safe Peer Removal with Validation
-
-```ts
-import { deletePeer, parse } from "@kriper0nind/wg-utils"
-import { readFile } from "fs/promises"
-
-async function safeDeletePeer(configPath: string, publicKey: string) {
-  try {
-    // First, verify the peer exists
-    const configContent = await readFile(configPath, "utf-8")
-    const config = parse(configContent)
-
-    const peerExists = config.Peers?.some((peer) => peer.PublicKey === publicKey)
-
-    if (!peerExists) {
-      throw new Error("Peer not found in configuration")
-    }
-
-    // Remove the peer
-    await deletePeer(configPath, { publicKey })
-    console.log("Peer removed successfully")
-  } catch (error) {
-    console.error("Failed to remove peer:", error.message)
-    throw error
-  }
+if (removed) {
+  console.log("Peer removed")
 }
 ```
 
-### Batch Peer Removal
+`deletePeer()` delegates to `removePeer()` and returns:
+
+- `true` when an active or disabled peer block was removed
+- `false` when no matching peer exists
+
+Removal is idempotent, so deleting the same peer twice does not throw.
+
+## Low-level removal
 
 ```ts
-async function removeMultiplePeers(configPath: string, publicKeys: string[]) {
-  const results = []
+import { removePeer } from "@kriper0nind/wg-utils"
 
-  for (const publicKey of publicKeys) {
-    try {
-      await deletePeer(configPath, { publicKey })
-      results.push({ publicKey, status: "removed" })
-    } catch (error) {
-      results.push({ publicKey, status: "failed", error: error.message })
-    }
-  }
-
-  return results
-}
-
-// Remove multiple peers
-const publicKeys = ["client1-public-key", "client2-public-key", "client3-public-key"]
-
-const results = await removeMultiplePeers("/etc/wireguard/wg0.conf", publicKeys)
-console.log("Removal results:", results)
+const removed = await removePeer("/etc/wireguard/wg0.conf", clientPublicKey, {
+  backup: true,
+  sync: "auto",
+})
 ```
 
-### Peer Management with Logging
+## Enable and disable
 
 ```ts
-import { deletePeer, parse, stringify } from "@kriper0nind/wg-utils"
-import { readFile, writeFile } from "fs/promises"
+import { setPeerEnabled } from "@kriper0nind/wg-utils"
 
-async function managePeers(configPath: string, action: string, publicKey: string) {
-  // Backup original configuration
-  const originalConfig = await readFile(configPath, "utf-8")
-  const backupPath = `${configPath}.backup.${Date.now()}`
-  await writeFile(backupPath, originalConfig)
-
-  try {
-    if (action === "remove") {
-      await deletePeer(configPath, { publicKey })
-      console.log(`Peer ${publicKey} removed successfully`)
-    }
-
-    // Log the change
-    console.log(`Configuration updated, backup saved to ${backupPath}`)
-  } catch (error) {
-    // Restore from backup on failure
-    await writeFile(configPath, originalConfig)
-    console.error("Operation failed, configuration restored from backup")
-    throw error
-  }
-}
+await setPeerEnabled("/etc/wireguard/wg0.conf", clientPublicKey, false)
+await setPeerEnabled("/etc/wireguard/wg0.conf", clientPublicKey, true)
 ```
 
-## Error Handling
+Disabling prefixes each line of the peer block with `#wg-utils: `. The block remains in the file and can be restored losslessly.
 
-The function may throw errors in the following scenarios:
+`setPeerEnabled()` returns `true` when the state changed and `false` when the peer was already in the requested state. A missing peer throws `PeerNotFoundError`.
 
-- **File not found**: Configuration file doesn't exist
-- **Permission denied**: Insufficient write permissions
-- **Peer not found**: Public key doesn't match any peer
-- **Invalid configuration**: Malformed configuration file
+## List disabled peers
 
 ```ts
-try {
-  await deletePeer("/etc/wireguard/wg0.conf", {
-    publicKey: "non-existent-key",
-  })
-} catch (error) {
-  if (error.code === "ENOENT") {
-    console.error("Configuration file not found")
-  } else if (error.code === "EACCES") {
-    console.error("Permission denied - run with sudo")
-  } else {
-    console.error("Failed to remove peer:", error.message)
-  }
+import { listDisabledPeers } from "@kriper0nind/wg-utils"
+
+const disabled = await listDisabledPeers("/etc/wireguard/wg0.conf")
+```
+
+`listPeers()` returns active peers only. `getPeer()` also searches active peers only.
+
+## Options
+
+All mutating peer helpers accept:
+
+```ts
+type ConfigWriteOptions = {
+  createDirectory?: boolean
+  backup?: boolean
+  mode?: number
+}
+
+type SyncOptions = {
+  iface?: string
+  sync?: boolean | "auto"
 }
 ```
 
-## Complete Peer Management
+- Writes are atomic and use `0600` by default.
+- `backup: true` creates `<filepath>.bak-<timestamp>`.
+- Omitted `sync` behaves like `"auto"` and syncs only a running interface.
+- `sync: true` forces `wg syncconf`.
+- `sync: false` only updates the file.
+
+## Example
 
 ```ts
-import { deletePeer, addPeer, parse, generateKeys } from "@kriper0nind/wg-utils"
-import { readFile } from "fs/promises"
+import { deletePeer, listDisabledPeers, listPeers, setPeerEnabled } from "@kriper0nind/wg-utils"
 
-class PeerManager {
-  constructor(private configPath: string) {}
+const configPath = "/etc/wireguard/wg0.conf"
 
-  async listPeers() {
-    const configContent = await readFile(this.configPath, "utf-8")
-    const config = parse(configContent)
-    return config.Peers || []
-  }
+// Temporarily suspend a peer
+await setPeerEnabled(configPath, clientPublicKey, false)
 
-  async addPeer() {
-    const keys = await generateKeys()
-    const result = await addPeer(this.configPath, {
-      publicKey: keys.publicKey,
-    })
-    return { ...keys, ip: result.ip }
-  }
+// Inspect suspended peers
+console.log(await listDisabledPeers(configPath))
 
-  async removePeer(publicKey: string) {
-    await deletePeer(this.configPath, { publicKey })
-  }
+// Restore access
+await setPeerEnabled(configPath, clientPublicKey, true)
 
-  async findPeer(publicKey: string) {
-    const peers = await this.listPeers()
-    return peers.find((peer) => peer.PublicKey === publicKey)
-  }
-}
-
-// Usage
-const manager = new PeerManager("/etc/wireguard/wg0.conf")
-
-// List all peers
-const peers = await manager.listPeers()
-console.log(`Found ${peers.length} peers`)
-
-// Add a new peer
-const newPeer = await manager.addPeer()
-console.log("New peer added:", newPeer.ip)
-
-// Remove a peer
-await manager.removePeer("old-peer-public-key")
-console.log("Peer removed")
+// Permanently remove the peer
+await deletePeer(configPath, { publicKey: clientPublicKey })
 ```
-
-## Configuration Before and After
-
-### Before Removal
-
-```ini
-[Interface]
-PrivateKey = server-private-key
-Address = 10.0.0.1/24
-
-[Peer]
-PublicKey = client1-public-key
-AllowedIPs = 10.0.0.2/32
-
-[Peer]
-PublicKey = client2-public-key
-AllowedIPs = 10.0.0.3/32
-```
-
-### After Removing client1
-
-```ini
-[Interface]
-PrivateKey = server-private-key
-Address = 10.0.0.1/24
-
-[Peer]
-PublicKey = client2-public-key
-AllowedIPs = 10.0.0.3/32
-```
-
-## Safety Features
-
-### Backup Before Removal
-
-```ts
-import { copyFile } from "fs/promises"
-
-async function safeRemovePeer(configPath: string, publicKey: string) {
-  // Create backup
-  const backupPath = `${configPath}.backup.${Date.now()}`
-  await copyFile(configPath, backupPath)
-
-  try {
-    await deletePeer(configPath, { publicKey })
-    console.log("Peer removed, backup created:", backupPath)
-  } catch (error) {
-    console.error("Removal failed, backup available:", backupPath)
-    throw error
-  }
-}
-```
-
-### Validation Before Removal
-
-```ts
-async function validateAndRemove(configPath: string, publicKey: string) {
-  const configContent = await readFile(configPath, "utf-8")
-  const config = parse(configContent)
-
-  // Check if peer exists
-  const peerIndex = config.Peers?.findIndex((peer) => peer.PublicKey === publicKey)
-
-  if (peerIndex === -1 || !config.Peers) {
-    throw new Error("Peer not found")
-  }
-
-  // Check if this is the last peer
-  if (config.Peers.length === 1) {
-    console.warn("Warning: This is the last peer in the configuration")
-  }
-
-  // Proceed with removal
-  await deletePeer(configPath, { publicKey })
-}
-```
-
-## Examples
-
-### Remove Inactive Peers
-
-```ts
-async function removeInactivePeers(configPath: string, inactiveKeys: string[]) {
-  const results = []
-
-  for (const publicKey of inactiveKeys) {
-    try {
-      await deletePeer(configPath, { publicKey })
-      results.push({ publicKey, status: "removed" })
-    } catch (error) {
-      results.push({ publicKey, status: "error", message: error.message })
-    }
-  }
-
-  return results
-}
-
-// Remove multiple inactive clients
-const inactiveClients = ["old-client-1-key", "old-client-2-key"]
-
-const results = await removeInactivePeers("/etc/wireguard/wg0.conf", inactiveClients)
-console.log("Cleanup results:", results)
-```
-
-### Peer Rotation
-
-```ts
-async function rotatePeer(oldPublicKey: string) {
-  // Generate new keys
-  const newKeys = await generateKeys()
-
-  // Add new peer
-  const result = await addPeer("/etc/wireguard/wg0.conf", {
-    publicKey: newKeys.publicKey,
-  })
-
-  // Remove old peer
-  await deletePeer("/etc/wireguard/wg0.conf", {
-    publicKey: oldPublicKey,
-  })
-
-  return {
-    newPrivateKey: newKeys.privateKey,
-    newPublicKey: newKeys.publicKey,
-    ip: result.ip,
-  }
-}
-```
-
-## Dependencies
-
-- **`parse`**: Parses WireGuard configuration files
-- **`stringify`**: Converts configuration objects back to WireGuard format
-- **`fs/promises`**: For file system operations
-
-## Notes
-
-- The function only removes peers that match the exact public key
-- If the peer is not found, the function completes silently (no error)
-- The configuration file is automatically updated and saved
-- All other peers and the interface configuration remain unchanged
-- Consider creating backups before removing peers in production environments
